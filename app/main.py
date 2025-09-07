@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from .routes import router as weather_router
+from app.routes import router as weather_router
 from dotenv import load_dotenv
 
 # Load environment variables from .env file

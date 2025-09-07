@@ -8,9 +8,14 @@ def get_weather(location: str):
     """
     Get aggregated weather data from multiple providers
     
-    Example locations:
+    Example locations, please input either city name or coordinates:
     - City: "Singapore"
-    - Coordinates: "1.29,103.85"
+    - Coordinates(latitude,longitude): "1.29,103.85"
+
+    Invalid input:
+    - "1.29,103.85,112" -> too many parameters
+    - "1.29,3000" -> longitude out of range
+    - "Singapore,1.29" -> too many parameters for city name
     """
     if not location or not location.strip():
         raise HTTPException(status_code=400, detail="Location parameter is required")
