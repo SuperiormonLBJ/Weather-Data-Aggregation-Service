@@ -1,17 +1,16 @@
+"""
+Utility functions for weather service
+"""
 import re
+from typing import Tuple
+from datetime import datetime, timezone, timedelta
 import os
-from typing import Tuple, Optional
-from datetime import datetime
+
 
 def is_coordinates(location: str) -> bool:
     """Check if location is in coordinate format (lat,lon)"""
     location = location.strip()
     
-    # Must contain exactly one comma
-    if location.count(',') != 1:
-        return False
-    
-    # Must match the coordinate number pattern
     pattern = r'^-?\d+\.?\d*,-?\d+\.?\d*$'
     return bool(re.match(pattern, location))
 
@@ -36,6 +35,7 @@ def parse_coordinates(location: str) -> Tuple[float, float]:
         
     return lat, lon
 
+
 def validate_city_name(city_name: str) -> None:
     """Simple city name validation"""
     city_name = city_name.strip()
@@ -51,31 +51,25 @@ def validate_city_name(city_name: str) -> None:
     if not re.search(r'[a-zA-Z]', city_name):
         raise ValueError("City name must contain letters")
 
+
 def validate_input_format(location: str) -> None:
     """Validate input format before processing"""
     location = location.strip()
     
-
+    if not location:
+        raise ValueError("Location cannot be empty")
+    
     comma_count = location.count(',')
-
-    # No comma - city name, should not be pure numbers
+    
     if comma_count == 0:
         validate_city_name(location)
-
-    # Too many commas
-    if comma_count > 1:
-        raise ValueError(f"Invalid format: '{location}'. Too many values given. Use 'latitude,longitude' for coordinates or city name without commas")
-    
-    # Exactly one comma - should be valid coordinates
-    if comma_count == 1:
+    elif comma_count == 1:
         if not is_coordinates(location):
             raise ValueError(f"Invalid coordinate format: '{location}'. Expected format: 'latitude,longitude' with valid numbers")
-        
-        # Also validate the coordinate values
-        try:
-            parse_coordinates(location)
-        except ValueError as e:
-            raise ValueError(f"Invalid coordinates: {str(e)}")
+        parse_coordinates(location)  # Validate values
+    else:
+        raise ValueError(f"Invalid format: '{location}'. Too many commas. Use 'latitude,longitude' for coordinates or city name without commas")
+
 
 def validate_api_keys() -> Tuple[str, str]:
     """Validate API keys are available and return them"""
@@ -93,11 +87,9 @@ def validate_api_keys() -> Tuple[str, str]:
     
     return openweather_api_key, weatherapi_key
 
+
 def get_singapore_timestamp() -> str:
     """Get current timestamp in Singapore timezone (UTC+8)"""
-    from datetime import timezone, timedelta
-    
-    # Singapore is UTC+8
     sg_offset = timedelta(hours=8)
     sg_timezone = timezone(sg_offset)
     sg_time = datetime.now(sg_timezone)

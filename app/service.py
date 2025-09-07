@@ -14,12 +14,8 @@ from app.utils import (
     get_singapore_timestamp
 )
 from app.weather_code import OPENMETEO_CODE_MAPPING, OPENWEATHER_CODE_MAPPING, WEATHERAPI_CODE_MAPPING
+from app.http_helper import make_api_request, get_weather_description
 
-timeouts = {
-    "openweather": aiohttp.ClientTimeout(total=7, connect=2),   
-    "weatherapi": aiohttp.ClientTimeout(total=7, connect=2),
-    "openmeteo": aiohttp.ClientTimeout(total=8, connect=2)      # slower than other 2 API providers
-}
 
 class WeatherAggregationService:
     """Weather aggregation service - focuses on provider integration and data  aggregation"""
@@ -28,9 +24,7 @@ class WeatherAggregationService:
         self.session = None
 
     async def get_aggregated_weather(self, location: str) -> Dict[str, Any]:
-        """
-        Get weather data from multiple providers in parallel and aggregate results
-        """
+        """Get weather data from multiple providers in parallel and aggregate results"""
         location = location.strip()
         
         # Validate input format and API keys
@@ -44,32 +38,34 @@ class WeatherAggregationService:
         if not self.session:
             self.session = aiohttp.ClientSession()
         
-        # Prepare tasks for parallel execution
-        tasks = []
-        
-        # Task 1: OpenWeatherMap
-        tasks.append(self._fetch_openweather_async(location, is_coords, openweather_api_key))
-        
-        # Task 2: WeatherAPI
-        tasks.append(self._fetch_weatherapi_async(location, weatherapi_key))
-        
-        # Task 3: Open-Meteo (with geocoding if needed)
-        if is_coords:
-            lat, lon = parse_coordinates(location)
-            tasks.append(self._fetch_openmeteo_async(lat, lon))
-        else:
-            # Need to geocode first, then call Open-Meteo
-            tasks.append(self._fetch_openmeteo_with_geocoding_async(location, openweather_api_key))
-        
-        # Execute all tasks in parallel
+        # Execute all provider tasks in parallel
         start_time = time.time()
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        results = await self._fetch_all_providers(location, is_coords, openweather_api_key, weatherapi_key)
         total_time = round((time.time() - start_time) * 1000, 2)
         
-        # Process results
+        # Process results and create response
+        weather_data, failed_providers = self._process_results(results)
+        
+        if not weather_data:
+            raise Exception("All weather providers failed")
+        
+        return self._build_aggregated_response(location, weather_data, failed_providers, total_time)
+    
+    async def _fetch_all_providers(self, location: str, is_coords: bool, 
+                                  openweather_key: str, weatherapi_key: str) -> List[Any]:
+        """Fetch from all providers in parallel"""
+        tasks = [
+            self._fetch_openweather(location, is_coords, openweather_key),
+            self._fetch_weatherapi(location, weatherapi_key),
+            self._fetch_openmeteo_with_location(location, is_coords, openweather_key)
+        ]
+        
+        return await asyncio.gather(*tasks, return_exceptions=True)
+    
+    def _process_results(self, results: List[Any]) -> tuple:
+        """Process provider results and separate successful vs failed"""
         weather_data = []
         failed_providers = []
-        
         provider_names = ["OpenWeatherMap", "WeatherAPI", "OpenMeteo"]
         
         for i, result in enumerate(results):
@@ -84,10 +80,12 @@ class WeatherAggregationService:
             elif result is not None:
                 weather_data.append(result)
         
-        if not weather_data:
-            raise Exception("All weather providers failed")
-        
-        # Calculate median temperature
+        return weather_data, failed_providers
+    
+    def _build_aggregated_response(self, location: str, weather_data: List[Dict], 
+                                  failed_providers: List[Dict], total_time: float) -> Dict[str, Any]:
+        """Build the final aggregated response"""
+        # Calculate aggregated values
         temperatures = [data["temperature"] for data in weather_data]
         median_temp = median(temperatures)
 
@@ -121,19 +119,13 @@ class WeatherAggregationService:
             "total_response_time_ms": total_time
         }
     
-    async def _fetch_openweather_async(self, location: str, is_coords: bool, api_key: str) -> Optional[Dict[str, Any]]:
-        """Fetch weather from OpenWeatherMap asynchronously"""
+    async def _fetch_openweather(self, location: str, is_coords: bool, api_key: str) -> Optional[Dict[str, Any]]:
+        """Fetch weather from OpenWeatherMap"""
         url = "https://api.openweathermap.org/data/2.5/weather"
         
         if is_coords:
             lat, lon = parse_coordinates(location)
-            # unit - metric is Celsius (°C)
-            params = {
-                "lat": lat,
-                "lon": lon,
-                "appid": api_key,
-                "units": "metric"
-            }
+            params = {"lat": lat, "lon": lon, "appid": api_key, "units": "metric"}
         else:
             params = {
                 "q": location,
@@ -141,132 +133,116 @@ class WeatherAggregationService:
                 "units": "metric"
             }
         
-        start = time.perf_counter()
-        try:
-            async with self.session.get(url, params=params, timeout=timeouts["openweather"]) as response:
-                elapsed = round((time.perf_counter() - start) * 1000, 0)
-                
-                if response.status == 200:
-                    data = await response.json()
-                    description = OPENWEATHER_CODE_MAPPING[data["weather"][0]["id"]].value
-                    return {
-                        "name": data["name"],
-                        "provider": "OpenWeatherMap",
-                        "temperature": data["main"]["temp"],
-                        "humidity": data["main"]["humidity"],
-                        "weathercode": data["weather"][0]["id"],
-                        "description": description,
-                        "wind_speed": data.get("wind", {}).get("speed"),
-                        "pressure": data["main"].get("pressure"),
-                        "response_time (ms)": elapsed
-                    }
-        except Exception as e:
-            raise Exception(f"OpenWeatherMap error: {str(e)}")
+        result = await make_api_request(self.session, url, params, "openweather", "OpenWeatherMap")
+        
+        if result["success"]:
+            data = result["data"]
+            weather_id = data["weather"][0]["id"]
+            description = get_weather_description(OPENWEATHER_CODE_MAPPING, weather_id, 
+                                                data["weather"][0]["description"])
+            
+            return {
+                "name": data["name"],
+                "provider": "OpenWeatherMap",
+                "temperature": data["main"]["temp"],
+                "humidity": data["main"]["humidity"],
+                "weathercode": weather_id,
+                "description": description,
+                "wind_speed": data.get("wind", {}).get("speed"),
+                "pressure": data["main"].get("pressure"),
+                "response_time (ms)": result["elapsed_ms"]
+            }
         
         return None
     
-    async def _fetch_weatherapi_async(self, location: str, api_key: str) -> Optional[Dict[str, Any]]:
-        """Fetch weather from WeatherAPI.com asynchronously"""
+    async def _fetch_weatherapi(self, location: str, api_key: str) -> Optional[Dict[str, Any]]:
+        """Fetch weather from WeatherAPI.com"""
         url = "http://api.weatherapi.com/v1/current.json"
-        params = {
-            "key": api_key,
-            "q": location
-        }
-        start = time.perf_counter()
-        try:
-            async with self.session.get(url, params=params, timeout=timeouts["weatherapi"]) as response:
-                elapsed = round((time.perf_counter() - start) * 1000, 0)
-                
-                if response.status == 200:
-                    data = await response.json()
-                    current = data["current"]
-                    description = WEATHERAPI_CODE_MAPPING[current["condition"]["code"]].value
+        params = {"key": api_key, "q": location}
+        
+        result = await make_api_request(self.session, url, params, "weatherapi", "WeatherAPI")
+        
+        if result["success"]:
+            data = result["data"]
+            current = data["current"]
+            condition_code = current["condition"]["code"]
+            description = get_weather_description(WEATHERAPI_CODE_MAPPING, condition_code, 
+                                                current["condition"]["text"])
 
-                    return {
-                        "name": data["location"]["name"],
-                        "provider": "WeatherAPI",
-                        "temperature": current["temp_c"],
-                        "humidity": current["humidity"],
-                        "weathercode": current["condition"]["code"],
-                        "description": description,
-                        "wind_speed (m/s)": round(current["wind_kph"] / 3.6, 2),
-                        "pressure": current.get("pressure_mb"),
-                        "response_time (ms)": elapsed
-                    }
-        except Exception as e:
-            raise Exception(f"WeatherAPI error: {str(e)}")
+            return {
+                "name": data["location"]["name"],
+                "provider": "WeatherAPI",
+                "temperature": current["temp_c"],
+                "humidity": current["humidity"],
+                "weathercode": condition_code,
+                "description": description,
+                "wind_speed (m/s)": round(current["wind_kph"] / 3.6, 2),
+                "pressure": current.get("pressure_mb"),
+                "response_time (ms)": result["elapsed_ms"]
+            }
         
         return None
     
-    async def _fetch_openmeteo_async(self, lat: float, lon: float) -> Optional[Dict[str, Any]]:
-        """Fetch weather from Open-Meteo asynchronously"""
+    async def _fetch_openmeteo(self, lat: float, lon: float) -> Optional[Dict[str, Any]]:
+        """Fetch weather from Open-Meteo using coordinates"""
         url = "https://api.open-meteo.com/v1/forecast"
-        params = {
-            "latitude": lat,
-            "longitude": lon,
-            "current_weather": "true"
-        }
-
-        start = time.perf_counter()
-        try:
-            async with self.session.get(url, params=params, timeout=timeouts["openmeteo"]) as response:
-                elapsed = round((time.perf_counter() - start) * 1000, 0)
-                
-                if response.status == 200:
-                    data = await response.json()
-                    current = data["current_weather"]
-                    description = OPENMETEO_CODE_MAPPING[current["weathercode"]].value
-                    
-                    return {
-                        "name": None,
-                        "provider": "OpenMeteo",
-                        "temperature": current["temperature"],
-                        "humidity": None,
-                        "weathercode": current["weathercode"],
-                        "description": description,
-                        "wind_speed (m/s)": round(current["windspeed"] / 3.6, 2),
-                        "pressure": None,
-                        "response_time (ms)": elapsed
-                    }
-        except Exception as e:
-            raise Exception(f"OpenMeteo error: {str(e)}")
+        params = {"latitude": lat, "longitude": lon, "current_weather": "true"}
+        
+        result = await make_api_request(self.session, url, params, "openmeteo", "OpenMeteo")
+        
+        if result["success"]:
+            data = result["data"]
+            current = data["current_weather"]
+            weather_code = current["weathercode"]
+            description = get_weather_description(OPENMETEO_CODE_MAPPING, weather_code, 
+                                                f"Weather code {weather_code}")
+            
+            return {
+                "name": None,
+                "provider": "OpenMeteo",
+                "temperature": current["temperature"],
+                "humidity": None,
+                "weathercode": weather_code,
+                "description": description,
+                "wind_speed (m/s)": round(current["windspeed"] / 3.6, 2),
+                "pressure": None,
+                "response_time (ms)": result["elapsed_ms"]
+            }
         
         return None
     
-    async def _fetch_openmeteo_with_geocoding_async(self, city_name: str, api_key: str) -> Optional[Dict[str, Any]]:
-        """Fetch Open-Meteo data with geocoding for city names"""
+    async def _fetch_openmeteo_with_location(self, location: str, is_coords: bool, 
+                                           openweather_key: str) -> Optional[Dict[str, Any]]:
+        """Fetch Open-Meteo data, handling both coordinates and city names"""
         try:
-            # First geocode the city
-            coords = await self._geocode_location_async(city_name, api_key)
-            if coords:
-                lat, lon = coords
-                return await self._fetch_openmeteo_async(lat, lon)
+            if is_coords:
+                lat, lon = parse_coordinates(location)
+                return await self._fetch_openmeteo(lat, lon)
+            else:
+                # Geocode city name first
+                coords = await self._geocode_location(location, openweather_key)
+                if coords:
+                    lat, lon = coords
+                    return await self._fetch_openmeteo(lat, lon)
         except Exception as e:
             raise Exception(f"OpenMeteo geocoding error: {str(e)}")
         
         return None
     
-    async def _geocode_location_async(self, city_name: str, api_key: str) -> Optional[tuple]:
-        """Get coordinates for a city name using OpenWeatherMap geocoding asynchronously"""
+    async def _geocode_location(self, city_name: str, api_key: str) -> Optional[tuple]:
+        """Get coordinates for a city name using OpenWeatherMap geocoding"""
         url = "http://api.openweathermap.org/geo/1.0/direct"
-        params = {
-            "q": city_name,
-            "limit": 1,
-            "appid": api_key
-        }
+        params = {"q": city_name, "limit": 1, "appid": api_key}
         
-        try:
-            async with self.session.get(url, params=params, timeout=timeouts["openweather"]) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data:
-                        return data[0]["lat"], data[0]["lon"]
-        except Exception as e:
-            raise Exception(f"Geocoding error: {str(e)}")
+        result = await make_api_request(self.session, url, params, "openweather", "Geocoding")
+        
+        if result["success"] and result["data"]:
+            data = result["data"][0]
+            return data["lat"], data["lon"]
         
         return None
     
     async def close(self):
         """Close the aiohttp session"""
-        if self.session:
+        if self.session and not self.session.closed:
             await self.session.close()
