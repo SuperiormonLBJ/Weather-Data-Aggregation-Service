@@ -16,11 +16,19 @@ weather-api/
 ├─ requirements.txt    # dependencies
 └─ README.md
 
-# Install dependencies
+### Create virutal env
+python -m venv weather-env
+
+### Activate virtual environment
+#### On macOS/Linux:
+source venv/bin/activate
+#### On Windows:
+venv\Scripts\activate
+
+### Install dependencies
 pip install -r requirements.txt
 
-# Setup .env file for API keys and other project level configuration
+### Setup .env file for API keys and other project level configuration
 
-# Setup Python FastAPI - Modern, Async by defult, builtin validation with Pydantic. auto Swagger docs
-
+### Run this python fastAPI project
 uvicorn app.main:app --reload
