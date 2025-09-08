@@ -1,35 +1,79 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
+from typing import Dict, Any
 from app.service import WeatherAggregationService
+from app.exceptions import (
+    ValidationError, 
+    ConfigurationError, 
+    ProviderError,
+    get_status_code,
+    format_error,
+    RESPONSE_EXAMPLES
+)
 
 router = APIRouter()
 
-@router.get("/weather")
-async def get_weather(location: str):  # Make this async
+@router.get(
+    "/weather",
+    status_code=200,
+    responses={
+        200: {
+            "description": "Successful weather data retrieval",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "location": "Singapore", 
+                        "temperature": {"value": 28.5, "unit": "celsius", "method": "median"},
+                        "humidity": 75.2,
+                        "conditions": "Partly cloudy",
+                        "source": [
+                            {"provider": "OpenWeatherMap", "status": "success", "response_time_ms": 234},
+                            {"provider": "WeatherAPI", "status": "success", "response_time_ms": 187},
+                            {"provider": "OpenMeteo", "status": "success", "response_time_ms": 156}
+                        ],
+                        "timestamp_sg": "2024-01-15 14:30:25 SGT"
+                    }
+                }
+            }
+        },
+        **RESPONSE_EXAMPLES
+    }
+)
+async def get_weather(location: str) -> Dict[str, Any]:
     """
-    Get aggregated weather data from multiple providers in parallel
+    Get aggregated weather data from multiple providers
     
-    Example locations, please input either city name or coordinates:
-    - City: "Singapore"
-    - Coordinates(latitude,longitude): "1.29,103.85"
-
-    Invalid input:
-    - "1.29,103.85,112" -> too many parameters
-    - "1.29,3000" -> longitude out of range
-    - "Singapore,1.29" -> too many parameters for city name
-
-    Return status code:
-    - 200: Success
-    - 400: Invalid input
-    - 500: Internal server error
+    **Input formats:**
+    - City: "Singapore", "New York" 
+    - Coordinates: "1.29,103.85"
+    
+    **Returns:**
+    - Median temperature from all providers
+    - Average humidity where available
+    - Most common weather condition
+    - Status of all providers
     """
     if not location or not location.strip():
-        raise HTTPException(status_code=400, detail="Location parameter is required")
+        raise HTTPException(
+            status_code=400, 
+            detail="Location parameter is required"
+        )
     
+    weather_service = None
     try:
         weather_service = WeatherAggregationService()
         result = await weather_service.get_aggregated_weather(location.strip())
         return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        
+    except (ValidationError, ConfigurationError, ProviderError) as e:
+        status_code = get_status_code(e)
+        detail = format_error(e)
+        raise HTTPException(status_code=status_code, detail=detail)
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to fetch weather data - " + str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Server error: {str(e)}"
+        )
+    finally:
+        if weather_service:
+            await weather_service.close()

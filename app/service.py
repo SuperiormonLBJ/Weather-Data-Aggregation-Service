@@ -14,6 +14,15 @@ from app.utils import (
 )
 from app.weather_code import OPENMETEO_CODE_MAPPING, OPENWEATHER_CODE_MAPPING, WEATHERAPI_CODE_MAPPING
 from app.http_helper import make_api_request, get_weather_description
+from app.config import PROVIDERS
+
+# Import exceptions from centralized module
+from app.exceptions import (
+    ValidationError, 
+    ConfigurationError, 
+    ProviderError, 
+    AggregationError
+)
 
 
 class WeatherAggregationService:
@@ -26,9 +35,13 @@ class WeatherAggregationService:
         """Get weather data from multiple providers in parallel and aggregate results"""
         location = location.strip()
         
-        # Validate input format and API keys
-        validate_input_format(location)
-        openweather_api_key, weatherapi_key = validate_api_keys()
+        try:
+            # Validate input format and API keys
+            validate_input_format(location)
+            openweather_api_key, weatherapi_key = validate_api_keys()
+        except (ValidationError, ConfigurationError) as e:
+            # Re-raise validation/config errors as-is (will become 400/500 in routes)
+            raise
         
         # Determine if location is coordinates or city name
         is_coords = is_coordinates(location)
@@ -37,16 +50,27 @@ class WeatherAggregationService:
         if not self.session:
             self.session = aiohttp.ClientSession()
         
-        # Execute all provider tasks in parallel
-        results = await self._fetch_all_providers(location, is_coords, openweather_api_key, weatherapi_key)
-        
-        # Process results and create response
-        weather_data = self._process_results(results)
-        
-        if not weather_data:
-            raise Exception("All weather providers failed")
-        
-        return self._build_response(location, weather_data)
+        try:
+            # Execute all provider tasks in parallel
+            results = await self._fetch_all_providers(location, is_coords, openweather_api_key, weatherapi_key)
+            
+            # Process results and create response
+            weather_data, all_sources = self._process_results(results)
+            
+            if not weather_data:
+                # Create detailed error message based on failures
+                error_details = self._analyze_failures(all_sources)
+                raise ProviderError(
+                    f"All weather providers failed - {error_details}. "
+                    "This could be due to network issues, invalid location, or service outages."
+                )
+            
+            return self._build_response(location, weather_data, all_sources)
+            
+        except (ProviderError, AggregationError):
+            raise  # Re-raise our custom errors
+        except Exception as e:
+            raise WeatherServiceError(f"Unexpected error during weather data retrieval: {str(e)}") from e
     
     async def _fetch_all_providers(self, location: str, is_coords: bool, 
                                   openweather_key: str, weatherapi_key: str) -> List[Any]:
@@ -64,7 +88,7 @@ class WeatherAggregationService:
         weather_data = []
         
         for result in results:
-            if result is not None and not isinstance(result, Exception):
+            if not isinstance(result, Exception):
                 weather_data.append(result)
         
         return weather_data
@@ -72,34 +96,37 @@ class WeatherAggregationService:
     def _build_response(self, location: str, weather_data: List[Dict]) -> Dict[str, Any]:
         """Build the final aggregated response """
         # Calculate aggregated values
-        temperatures = [data["temperature"] for data in weather_data]
-        median_temp = median(temperatures)
+        temperatures = [data["temperature"] for data in weather_data if data.get("temperature") is not None]
+        median_temp = median(temperatures) if temperatures else None
 
         # Calculate average humidity
-        humidities = [data["humidity"] for data in weather_data if data["humidity"] is not None]
+        humidities = [data["humidity"] for data in weather_data if data.get("humidity") is not None]
         average_humidity = sum(humidities) / len(humidities) if humidities else None
 
         # Calculate most common weather description
-        descriptions = [data["description"] for data in weather_data]
-        most_common_description = max(set(descriptions), key=descriptions.count)
-        
+        descriptions = [data["description"] for data in weather_data if data.get("description") is not None]
+        if not descriptions:
+            most_common_description = "Weather data unavailable"
+        else:
+            most_common_description = max(set(descriptions), key=descriptions.count)
+    
         # Return aggregated response
         return {
             "location": location,
             "temperature": {
-                "value": round(median_temp, 1),
+                "value": round(median_temp, 1) if median_temp is not None else None,
                 "unit": "celsius",
                 "method": "median"
             },
-            "humidity":round(average_humidity, 1),
+            "humidity":round(average_humidity, 1) if average_humidity is not None else None,
             "conditions": most_common_description,
-            "source": [data["source"] for data in weather_data],
+            "source": [data["source"] for data in weather_data if data["source"] is not None],
             "timestamp_sg": get_singapore_timestamp(),
         }
     
     async def _fetch_openweather(self, location: str, is_coords: bool, api_key: str) -> Optional[Dict[str, Any]]:
         """Fetch weather from OpenWeatherMap"""
-        url = "https://api.openweathermap.org/data/2.5/weather"
+        url = PROVIDERS["openweather"]["weather_url"]
         
         if is_coords:
             lat, lon = parse_coordinates(location)
@@ -122,11 +149,16 @@ class WeatherAggregationService:
                 "source": {"provider": "OpenWeatherMap", "status": "success", "response_time_ms": result["response_time_ms"]}
             }
         
-        return None
+        return {
+                "temperature": None,
+                "humidity": None,
+                "description": None,
+                "source": {"provider": "OpenWeatherMap", "status": result["status"], "response_time_ms": result["response_time_ms"]}
+            }
     
     async def _fetch_weatherapi(self, location: str, api_key: str) -> Optional[Dict[str, Any]]:
         """Fetch weather from WeatherAPI.com"""
-        url = "http://api.weatherapi.com/v1/current.json"
+        url = PROVIDERS["weatherapi"]["weather_url"]
         params = {"key": api_key, "q": location}
         
         result = await make_api_request(self.session, url, params, "weatherapi", "WeatherAPI")
@@ -145,11 +177,16 @@ class WeatherAggregationService:
                 "source": {"provider": "WeatherAPI", "status": "success", "response_time_ms": result["response_time_ms"]}
             }
         
-        return None
+        return {
+                "temperature": None,
+                "humidity": None,
+                "description": None,
+                "source": {"provider": "WeatherAPI", "status": result["status"], "response_time_ms": result["response_time_ms"]}
+            }
     
     async def _fetch_openmeteo(self, lat: float, lon: float) -> Optional[Dict[str, Any]]:
         """Fetch weather from Open-Meteo using coordinates"""
-        url = "https://api.open-meteo.com/v1/forecast"
+        url = PROVIDERS["openmeteo"]["weather_url"]
         params = {"latitude": lat, "longitude": lon, "current_weather": "true"}
         
         result = await make_api_request(self.session, url, params, "openmeteo", "OpenMeteo")
@@ -168,7 +205,12 @@ class WeatherAggregationService:
                 "source": {"provider": "OpenMeteo", "status": "success", "response_time_ms": result["response_time_ms"]}
             }
         
-        return None
+        return {
+                "temperature": None,
+                "humidity": None,
+                "description": None,
+                "source": {"provider": "OpenMeteo", "status": result["status"], "response_time_ms": result["response_time_ms"]}
+            }
     
     async def _fetch_openmeteo_with_location(self, location: str, is_coords: bool, 
                                            openweather_key: str) -> Optional[Dict[str, Any]]:
@@ -183,14 +225,20 @@ class WeatherAggregationService:
                 if coords:
                     lat, lon = coords
                     return await self._fetch_openmeteo(lat, lon)
+                else:
+                    return {
+                        "temperature": None,
+                        "humidity": None,
+                        "description": None,
+                        "source": {"provider": "OpenMeteo", "status": "failure - geocoding error", "response_time_ms": None}
+                    }
         except Exception as e:
             raise Exception(f"OpenMeteo geocoding error: {str(e)}")
-        
-        return None
+
     
     async def _geocode_location(self, city_name: str, api_key: str) -> Optional[tuple]:
         """Get coordinates for a city name using OpenWeatherMap geocoding"""
-        url = "http://api.openweathermap.org/geo/1.0/direct"
+        url = PROVIDERS["openweather"]["geocoding_url"]
         params = {"q": city_name, "limit": 1, "appid": api_key}
         
         result = await make_api_request(self.session, url, params, "openweather", "Geocoding")
