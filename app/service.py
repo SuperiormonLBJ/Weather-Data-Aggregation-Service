@@ -5,6 +5,7 @@ from statistics import median
 from typing import List, Dict, Any, Optional, Tuple
 
 
+from app.cache import weather_cache
 from app.utils import (
     is_coordinates, 
     parse_coordinates, 
@@ -36,6 +37,17 @@ class WeatherAggregationService:
         try:
             location = location.strip()
             validate_input_format(location)
+
+            # Cache check
+            cached_data = weather_cache.get(location)
+            if cached_data:
+                logger.info(f"Cache hit for {location}")
+                return cached_data
+
+            # Cache miss
+            logger.info(f"Cache miss for {location}")
+
+            # Validate API keys
             openweather_api_key, weatherapi_key = validate_api_keys()
             
             is_coords = is_coordinates(location)
@@ -57,6 +69,9 @@ class WeatherAggregationService:
             
             # Build response with all sources
             response = self._build_response(location, weather_data, all_sources)
+
+            # Cache the response
+            weather_cache.set(location, response)
             
             elapsed_time = round((time.perf_counter() - start_time) * 1000, 0)
             logger.info(f"get_aggregated_weather took {elapsed_time}ms")
