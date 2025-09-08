@@ -1,5 +1,5 @@
 """
-Simple HTTP helper with basic token bucket rate limiting and logging
+Simple HTTP helper with basic token bucket rate limiting
 """
 import random
 import aiohttp

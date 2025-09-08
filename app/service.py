@@ -30,39 +30,42 @@ class WeatherAggregationService:
 
     @log_time
     async def get_aggregated_weather(self, location: str) -> Dict[str, Any]:
-        """Get weather data from multiple providers"""
-        logger.info(f"Getting weather for: {location}")
-        
-        location = location.strip()
+        """Main method to get aggregated weather data"""
+        start_time = time.perf_counter()
         
         try:
-            # Validate input
+            location = location.strip()
             validate_input_format(location)
             openweather_api_key, weatherapi_key = validate_api_keys()
             
             is_coords = is_coordinates(location)
-            logger.info(f"Input type: {'coordinates' if is_coords else 'city'}")
             
-            # Create session
             if not self.session:
                 self.session = aiohttp.ClientSession()
             
             # Fetch from all providers
-            logger.info("Fetching from all providers...")
             results = await self._fetch_all_providers(location, is_coords, openweather_api_key, weatherapi_key)
             
-            # Process results
-            weather_data = self._process_results(results)
+            # Process results to get both successful data and all source info
+            weather_data, all_sources = self._process_results(results)
             
             if not weather_data:
                 logger.error("All providers failed")
-                raise ProviderError("All weather providers failed")
+                raise ProviderError("All weather providers failed to return data")
             
             logger.info(f"Success: {len(weather_data)} providers returned data")
-            return self._build_response(location, weather_data)
+            
+            # Build response with all sources
+            response = self._build_response(location, weather_data, all_sources)
+            
+            elapsed_time = round((time.perf_counter() - start_time) * 1000, 0)
+            logger.info(f"get_aggregated_weather took {elapsed_time}ms")
+            
+            return response
             
         except Exception as e:
-            logger.error(f"Error getting weather for {location}: {e}")
+            elapsed_time = round((time.perf_counter() - start_time) * 1000, 0)
+            logger.error(f"get_aggregated_weather failed after {elapsed_time}ms: {str(e)}")
             raise
     
     async def _fetch_all_providers(self, location: str, is_coords: bool, 
@@ -76,9 +79,10 @@ class WeatherAggregationService:
         
         return await asyncio.gather(*tasks, return_exceptions=True)
     
-    def _process_results(self, results: List[Any]) -> List[Dict]:
-        """Process provider results and filter successful ones"""
+    def _process_results(self, results: List[Any]) -> tuple[List[Dict], List[Dict]]:
+        """Process provider results and return both successful data and all source info"""
         weather_data = []
+        all_sources = []
         providers = ["OpenWeatherMap", "WeatherAPI", "OpenMeteo"]
         for i, result in enumerate(results):
             provider = providers[i]
@@ -86,14 +90,33 @@ class WeatherAggregationService:
             if result and not isinstance(result, Exception) and isinstance(result, dict):
                 logger.info(f"✓ {provider} success")
                 weather_data.append(result)
+                # Add successful source info
+                all_sources.append(result.get("source", {
+                    "provider": provider,
+                    "status": "success", 
+                    "response_time_ms": result.get("response_time (ms)", 0)
+                }))
             else:
                 error = str(result) if isinstance(result, Exception) else "No data"
                 logger.warning(f"✗ {provider} failed: {error}")
+                
+                # Add failed source info
+                response_time = 0
+                if hasattr(result, 'get') and callable(getattr(result, 'get')):
+                    response_time = result.get("response_time_ms", 0)
+                elif isinstance(result, dict):
+                    response_time = result.get("response_time_ms", 0)
+                    
+                all_sources.append({
+                    "provider": provider,
+                    "status": "failure",
+                    "response_time_ms": response_time
+                })
         
-        return weather_data
+        return weather_data, all_sources
     
-    def _build_response(self, location: str, weather_data: List[Dict]) -> Dict[str, Any]:
-        """Build the final aggregated response """
+    def _build_response(self, location: str, weather_data: List[Dict], all_sources: List[Dict]) -> Dict[str, Any]:
+        """Build the final aggregated response with all provider sources"""
         # Calculate aggregated values
         logger.debug("Building response")
         temperatures = [data["temperature"] for data in weather_data if data["temperature"] is not None]
@@ -122,7 +145,7 @@ class WeatherAggregationService:
             },
             "humidity":round(average_humidity, 1) if average_humidity is not None else None,
             "conditions": most_common_description,
-            "source": [data["source"] for data in weather_data if data["source"] is not None],
+            "source": all_sources,  # Now includes all providers (success + failure)
             "timestamp_sg": get_singapore_timestamp(),
         }
     
@@ -153,21 +176,17 @@ class WeatherAggregationService:
                 
                 return {
                     "name": data["name"],
-                    "provider": "OpenWeatherMap", 
                     "temperature": data["main"]["temp"],
                     "humidity": data["main"]["humidity"],
                     "weathercode": weather_id,
                     "description": description,
-                    "wind_speed": data.get("wind", {}).get("speed"),
-                    "pressure": data["main"].get("pressure"),
-                    "response_time (ms)": result["elapsed_ms"],
                     "source": {"provider": "OpenWeatherMap", "status": "success", "response_time_ms": result["elapsed_ms"]}
                 }
                 
         except Exception as e:
             logger.error(f"OpenWeatherMap fetch error: {str(e)}")
         
-        return None
+        return {"source": {"provider": "OpenWeatherMap", "status": "failure", "response_time_ms": result["elapsed_ms"]}}
     
     async def _fetch_weatherapi(self, location: str, api_key: str) -> Optional[Dict[str, Any]]:
         """Fetch from WeatherAPI"""
@@ -190,21 +209,17 @@ class WeatherAggregationService:
 
                 return {
                     "name": data["location"]["name"],
-                    "provider": "WeatherAPI",
                     "temperature": current["temp_c"],
                     "humidity": current["humidity"],
                     "weathercode": condition_code,
                     "description": description,
-                    "wind_speed (m/s)": round(current["wind_kph"] / 3.6, 2),
-                    "pressure": current.get("pressure_mb"),
-                    "response_time (ms)": result["elapsed_ms"],
                     "source": {"provider": "WeatherAPI", "status": "success", "response_time_ms": result["elapsed_ms"]}
                 }
                 
         except Exception as e:
             logger.error(f"WeatherAPI error: {e}")
         
-        return None
+        return {"source": {"provider": "WeatherAPI", "status": "failure", "response_time_ms": result["elapsed_ms"]}}
     
     async def _fetch_openmeteo(self, lat: float, lon: float) -> Optional[Dict[str, Any]]:
         """Fetch from Open-Meteo"""
@@ -227,21 +242,17 @@ class WeatherAggregationService:
 
                 return {
                     "name": None,
-                    "provider": "OpenMeteo",
                     "temperature": current["temperature"],
                     "humidity": None,
                     "weathercode": weather_code,
                     "description": description,
-                    "wind_speed (m/s)": round(current["windspeed"] / 3.6, 2),
-                    "pressure": None,
-                    "response_time (ms)": result["elapsed_ms"],
                     "source": {"provider": "OpenMeteo", "status": "success", "response_time_ms": result["elapsed_ms"]}
                 }
                 
         except Exception as e:
             logger.error(f"OpenMeteo error: {e}")
         
-        return None
+        return {"source": {"provider": "OpenMeteo", "status": "failure", "response_time_ms": result["elapsed_ms"]}}
     
     async def _fetch_openmeteo_with_location(self, location: str, is_coords: bool, 
                                            openweather_key: str) -> Optional[Dict[str, Any]]:
