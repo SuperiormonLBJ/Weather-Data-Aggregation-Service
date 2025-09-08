@@ -1,18 +1,30 @@
-from fastapi import FastAPI
-from app.routes import router as weather_router
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
 
-# Load environment variables from .env file
+from .routes import router as weather_router
+from .logger import setup_logging, get_logger
+
+# Load environment
 load_dotenv()
 
-# Create FastAPI app
+# Setup logging first
+setup_logging()
+logger = get_logger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting Weather Service")
+    yield
+    logger.info("Stopping Weather Service")
+
 app = FastAPI(
     title="Weather Data Aggregation Service",
-    description="A RESTful API that aggregates weather data from multiple providers",
-    version="1.0.0"
+    description="Aggregates weather data from multiple providers",
+    version="1.0.0",
+    lifespan=lifespan
 )
 
-# Include weather routes
 app.include_router(weather_router, prefix="/api/v1")
 
 @app.get("/")
@@ -20,5 +32,5 @@ def root():
     return {"message": "Weather Data Aggregation Service", "version": "1.0.0"}
 
 @app.get("/health")
-def health_check():
+def health():
     return {"status": "healthy"}

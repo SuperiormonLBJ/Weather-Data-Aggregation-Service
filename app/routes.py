@@ -9,7 +9,9 @@ from app.exceptions import (
     format_error,
     RESPONSE_EXAMPLES
 )
+from app.logger import get_logger
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 @router.get(
@@ -39,9 +41,8 @@ router = APIRouter()
     }
 )
 async def get_weather(location: str) -> Dict[str, Any]:
-    """
-    Get aggregated weather data from multiple providers
-    
+    """Get aggregated weather data from multiple providers
+
     **Input formats:**
     - City: "Singapore", "New York" 
     - Coordinates: "1.29,103.85"
@@ -52,28 +53,29 @@ async def get_weather(location: str) -> Dict[str, Any]:
     - Most common weather condition
     - Status of all providers
     """
+    logger.info(f"Weather request started: {location}")
     if not location or not location.strip():
-        raise HTTPException(
-            status_code=400, 
-            detail="Location parameter is required"
-        )
+        logger.warning("Empty location parameter")
+        raise HTTPException(status_code=400, detail="Location parameter is required")
     
     weather_service = None
     try:
         weather_service = WeatherAggregationService()
         result = await weather_service.get_aggregated_weather(location.strip())
+        
+        logger.info(f"Weather request completed: {location}")
         return result
         
     except (ValidationError, ConfigurationError, ProviderError) as e:
         status_code = get_status_code(e)
         detail = format_error(e)
+        logger.warning(f"Weather request failed: {location} - {detail}")
         raise HTTPException(status_code=status_code, detail=detail)
         
     except Exception as e:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Server error: {str(e)}"
-        )
+        logger.error(f"Unexpected error: {location} - {e}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        
     finally:
         if weather_service:
             await weather_service.close()
