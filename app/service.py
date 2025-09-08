@@ -3,8 +3,7 @@ import aiohttp
 import time
 from statistics import median
 from typing import List, Dict, Any, Optional
-import os
-from datetime import datetime
+
 
 from app.utils import (
     is_coordinates, 
@@ -39,17 +38,15 @@ class WeatherAggregationService:
             self.session = aiohttp.ClientSession()
         
         # Execute all provider tasks in parallel
-        start_time = time.time()
         results = await self._fetch_all_providers(location, is_coords, openweather_api_key, weatherapi_key)
-        total_time = round((time.time() - start_time) * 1000, 2)
         
         # Process results and create response
-        weather_data, failed_providers = self._process_results(results)
+        weather_data = self._process_results(results)
         
         if not weather_data:
             raise Exception("All weather providers failed")
         
-        return self._build_aggregated_response(location, weather_data, failed_providers, total_time)
+        return self._build_response(location, weather_data)
     
     async def _fetch_all_providers(self, location: str, is_coords: bool, 
                                   openweather_key: str, weatherapi_key: str) -> List[Any]:
@@ -62,29 +59,18 @@ class WeatherAggregationService:
         
         return await asyncio.gather(*tasks, return_exceptions=True)
     
-    def _process_results(self, results: List[Any]) -> tuple:
-        """Process provider results and separate successful vs failed"""
+    def _process_results(self, results: List[Any]) -> List[Dict]:
+        """Process provider results and filter successful ones"""
         weather_data = []
-        failed_providers = []
-        provider_names = ["OpenWeatherMap", "WeatherAPI", "OpenMeteo"]
         
-        for i, result in enumerate(results):
-            provider_name = provider_names[i]
-            
-            if isinstance(result, Exception):
-                failed_providers.append({
-                    "provider": provider_name, 
-                    "error": str(result),
-                    "type": type(result).__name__
-                })
-            elif result is not None:
+        for result in results:
+            if result is not None and not isinstance(result, Exception):
                 weather_data.append(result)
         
-        return weather_data, failed_providers
+        return weather_data
     
-    def _build_aggregated_response(self, location: str, weather_data: List[Dict], 
-                                  failed_providers: List[Dict], total_time: float) -> Dict[str, Any]:
-        """Build the final aggregated response"""
+    def _build_response(self, location: str, weather_data: List[Dict]) -> Dict[str, Any]:
+        """Build the final aggregated response """
         # Calculate aggregated values
         temperatures = [data["temperature"] for data in weather_data]
         median_temp = median(temperatures)
@@ -101,22 +87,14 @@ class WeatherAggregationService:
         return {
             "location": location,
             "temperature": {
-                "median": round(median_temp, 1),
+                "value": round(median_temp, 1),
                 "unit": "celsius",
                 "method": "median"
             },
-            "humidity": {
-                "average": round(average_humidity, 1),
-                "unit": "percentage",
-                "method": "average"
-            },
+            "humidity":round(average_humidity, 1),
             "conditions": most_common_description,
-            "providers_used": [data["provider"] for data in weather_data],
-            "weather_data": weather_data,
+            "source": [data["source"] for data in weather_data],
             "timestamp_sg": get_singapore_timestamp(),
-            "total_providers": len(weather_data),
-            "failed_providers": failed_providers if failed_providers else None,
-            "total_response_time_ms": total_time
         }
     
     async def _fetch_openweather(self, location: str, is_coords: bool, api_key: str) -> Optional[Dict[str, Any]]:
@@ -127,30 +105,21 @@ class WeatherAggregationService:
             lat, lon = parse_coordinates(location)
             params = {"lat": lat, "lon": lon, "appid": api_key, "units": "metric"}
         else:
-            params = {
-                "q": location,
-                "appid": api_key,
-                "units": "metric"
-            }
+            params = {"q": location, "appid": api_key, "units": "metric"}
         
         result = await make_api_request(self.session, url, params, "openweather", "OpenWeatherMap")
         
-        if result["success"]:
+        if result["status"] == "success":
             data = result["data"]
             weather_id = data["weather"][0]["id"]
             description = get_weather_description(OPENWEATHER_CODE_MAPPING, weather_id, 
                                                 data["weather"][0]["description"])
             
             return {
-                "name": data["name"],
-                "provider": "OpenWeatherMap",
                 "temperature": data["main"]["temp"],
                 "humidity": data["main"]["humidity"],
-                "weathercode": weather_id,
                 "description": description,
-                "wind_speed": data.get("wind", {}).get("speed"),
-                "pressure": data["main"].get("pressure"),
-                "response_time (ms)": result["elapsed_ms"]
+                "source": {"provider": "OpenWeatherMap", "status": "success", "response_time_ms": result["response_time_ms"]}
             }
         
         return None
@@ -162,7 +131,7 @@ class WeatherAggregationService:
         
         result = await make_api_request(self.session, url, params, "weatherapi", "WeatherAPI")
         
-        if result["success"]:
+        if result["status"] == "success":
             data = result["data"]
             current = data["current"]
             condition_code = current["condition"]["code"]
@@ -170,15 +139,10 @@ class WeatherAggregationService:
                                                 current["condition"]["text"])
 
             return {
-                "name": data["location"]["name"],
-                "provider": "WeatherAPI",
                 "temperature": current["temp_c"],
                 "humidity": current["humidity"],
-                "weathercode": condition_code,
                 "description": description,
-                "wind_speed (m/s)": round(current["wind_kph"] / 3.6, 2),
-                "pressure": current.get("pressure_mb"),
-                "response_time (ms)": result["elapsed_ms"]
+                "source": {"provider": "WeatherAPI", "status": "success", "response_time_ms": result["response_time_ms"]}
             }
         
         return None
@@ -190,7 +154,7 @@ class WeatherAggregationService:
         
         result = await make_api_request(self.session, url, params, "openmeteo", "OpenMeteo")
         
-        if result["success"]:
+        if result["status"] == "success":
             data = result["data"]
             current = data["current_weather"]
             weather_code = current["weathercode"]
@@ -198,15 +162,10 @@ class WeatherAggregationService:
                                                 f"Weather code {weather_code}")
             
             return {
-                "name": None,
-                "provider": "OpenMeteo",
                 "temperature": current["temperature"],
-                "humidity": None,
-                "weathercode": weather_code,
+                "humidity": None,  # Open-Meteo doesn't provide humidity
                 "description": description,
-                "wind_speed (m/s)": round(current["windspeed"] / 3.6, 2),
-                "pressure": None,
-                "response_time (ms)": result["elapsed_ms"]
+                "source": {"provider": "OpenMeteo", "status": "success", "response_time_ms": result["response_time_ms"]}
             }
         
         return None
@@ -236,7 +195,7 @@ class WeatherAggregationService:
         
         result = await make_api_request(self.session, url, params, "openweather", "Geocoding")
         
-        if result["success"] and result["data"]:
+        if result["status"] == "success" and result["data"]:
             data = result["data"][0]
             return data["lat"], data["lon"]
         

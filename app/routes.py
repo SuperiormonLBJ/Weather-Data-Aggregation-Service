@@ -32,4 +32,4 @@ async def get_weather(location: str):  # Make this async
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to fetch weather data")
+        raise HTTPException(status_code=500, detail="Failed to fetch weather data - " + str(e))
