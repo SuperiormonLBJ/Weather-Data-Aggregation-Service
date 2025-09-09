@@ -64,7 +64,7 @@ class WeatherAggregationService:
             
             if not weather_data:
                 logger.error("All providers failed")
-                raise ProviderError("All weather providers failed to return data")
+                raise ProviderError("All weather providers failed to return current weather data for this location now, please try again later or change location.")
             
             logger.info(f"Success: {len(weather_data)} providers returned data")
             
@@ -100,10 +100,11 @@ class WeatherAggregationService:
         weather_data = []
         all_sources = []
         providers = ["OpenWeatherMap", "WeatherAPI", "OpenMeteo"]
+        
         for i, result in enumerate(results):
             provider = providers[i]
             
-            if result and not isinstance(result, Exception):
+            if result and not isinstance(result, Exception) and "source" in result:
                 if result["source"]["status"] == "success":
                     logger.info(f"✓ {provider} success")
                     weather_data.append(result)
@@ -113,7 +114,7 @@ class WeatherAggregationService:
                     all_sources.append(result["source"])
             else:
                 logger.error(f"✗ {provider} failed with exception")
-                all_sources.append({"provider": provider, "status": "failure wtih exception", "response_time_ms": 0})
+                all_sources.append({"provider": provider, "status": "failure with exception", "response_time_ms": 0})
         return weather_data, all_sources
     
     def _build_response(self, location: str, weather_data: List[Dict], all_sources: List[Dict]) -> Dict[str, Any]:

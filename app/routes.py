@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
 from app.service import WeatherAggregationService
 from app.exceptions import (
@@ -11,6 +11,7 @@ from app.exceptions import (
 )
 from app.logger import get_logger
 from app.config import get_config_summary
+from app.auth import get_api_key
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -38,10 +39,18 @@ router = APIRouter()
                 }
             }
         },
+        401: {
+            "description": "Authentication required",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "API key required. Use Authorization: Bearer <key> header or ?api_key=<key> parameter"}
+                }
+            }
+        },
         **RESPONSE_EXAMPLES
     }
 )
-async def get_weather(location: str) -> Dict[str, Any]:
+async def get_weather(location: str, api_key: str = Depends(get_api_key)) -> Dict[str, Any]:
     """Get aggregated weather data from multiple providers
 
     **Input formats:**
@@ -60,7 +69,10 @@ async def get_weather(location: str) -> Dict[str, Any]:
     - Coordinates: "1.29,103.85,103.85" / "1.29,12222" / "12"
     
     """
-    logger.info(f"Weather request started: {location}")
+    # Use the authenticated key for logging
+    used_key = api_key
+    logger.info(f"Weather request started: {location} (API key: {used_key})")
+    
     if not location or not location.strip():
         logger.warning("Empty location parameter")
         raise HTTPException(status_code=400, detail="Location parameter is required")
