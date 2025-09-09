@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from .routes import router as weather_router
 from .logger import setup_logging, get_logger
+from .http_client import get_global_session, close_global_session
 
 # Load environment
 load_dotenv()
@@ -15,7 +16,11 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Weather Service")
+    # Initialize global session
+    await get_global_session()
     yield
+    # Clean up global session
+    await close_global_session()
     logger.info("Stopping Weather Service")
 
 app = FastAPI(

@@ -83,9 +83,6 @@ async def get_weather(location: str) -> Dict[str, Any]:
         logger.error(f"Unexpected error: {location} - {e}")
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
         
-    finally:
-        if weather_service:
-            await weather_service.close()
 
 @router.get("/config")
 def get_current_config():

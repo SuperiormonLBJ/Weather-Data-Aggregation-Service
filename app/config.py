@@ -67,6 +67,14 @@ JITTER_FACTOR: float = float(os.getenv('JITTER_FACTOR', '0.1'))
 BACKOFF_MULTIPLIER: float = float(os.getenv('BACKOFF_MULTIPLIER', '2.0'))
 
 # ============================================================================
+# CONNECTION POOL CONFIGURATION
+# ============================================================================
+
+CONNECTION_POOL_SIZE: int = int(os.getenv('CONNECTION_POOL_SIZE', '100'))
+CONNECTION_POOL_PER_HOST: int = int(os.getenv('CONNECTION_POOL_PER_HOST', '30'))
+CONNECTION_KEEPALIVE_TIMEOUT: int = int(os.getenv('CONNECTION_KEEPALIVE_TIMEOUT', '30'))
+
+# ============================================================================
 # CONSTRUCTED CONFIGURATIONS
 # ============================================================================
 
@@ -136,5 +144,10 @@ def get_config_summary() -> Dict[str, Any]:
         "api_keys_configured": {
             "openweather": bool(OPENWEATHER_API_KEY),
             "weatherapi": bool(WEATHERAPI_KEY)
+        },
+        "connection_pool": {
+            "pool_size": CONNECTION_POOL_SIZE,
+            "per_host": CONNECTION_POOL_PER_HOST,
+            "keepalive_timeout": CONNECTION_KEEPALIVE_TIMEOUT
         }
     }
