@@ -4,7 +4,7 @@ Global HTTP session with connection pooling
 import aiohttp
 from typing import Optional
 from app.config import CONNECTION_KEEPALIVE_TIMEOUT, CONNECTION_POOL_SIZE, CONNECTION_POOL_PER_HOST
-from app.logger import get_logger
+from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 

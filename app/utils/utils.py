@@ -2,11 +2,10 @@
 Utility functions for weather service
 """
 import re
-import os
 from typing import Tuple
 from datetime import datetime, timezone, timedelta
 from app.config import OPENWEATHER_API_KEY, WEATHERAPI_KEY
-from app.exceptions import ValidationError, ConfigurationError
+from app.core.exceptions import ValidationError, ConfigurationError
 
 
 def is_coordinates(location: str) -> bool:
