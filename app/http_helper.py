@@ -142,7 +142,6 @@ async def make_api_request(session: aiohttp.ClientSession, url: str, params: Dic
                             "provider": provider_name, 
                             "status": "success", 
                             "response_time_ms": elapsed,
-                            "elapsed_ms": elapsed, 
                             "data": data,
                             "attempts": attempt_num
                         }
@@ -183,6 +182,7 @@ async def make_api_request(session: aiohttp.ClientSession, url: str, params: Dic
                         "status": f"failure - {last_error}", 
                         "response_time_ms": total_elapsed,
                         "attempts": attempt_num,
+                        "data": None,
                         "error": last_error
                     }
                 
@@ -229,6 +229,7 @@ async def make_api_request(session: aiohttp.ClientSession, url: str, params: Dic
                 "status": f"failure - {last_error}", 
                 "response_time_ms": total_elapsed,
                 "attempts": attempt_num,
+                "data": None,
                 "error": last_error
             }
     

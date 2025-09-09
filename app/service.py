@@ -103,32 +103,17 @@ class WeatherAggregationService:
         for i, result in enumerate(results):
             provider = providers[i]
             
-            if result and not isinstance(result, Exception) and isinstance(result, dict):
-                logger.info(f"✓ {provider} success")
-                weather_data.append(result)
-                # Add successful source info
-                all_sources.append(result.get("source", {
-                    "provider": provider,
-                    "status": "success", 
-                    "response_time_ms": result.get("response_time (ms)", 0)
-                }))
+            if result and not isinstance(result, Exception):
+                if result["source"]["status"] == "success":
+                    logger.info(f"✓ {provider} success")
+                    weather_data.append(result)
+                    all_sources.append(result["source"])
+                else:
+                    logger.warning(f"✗ {provider} failed: {result['source']['status']}")
+                    all_sources.append(result["source"])
             else:
-                error = str(result) if isinstance(result, Exception) else "No data"
-                logger.warning(f"✗ {provider} failed: {error}")
-                
-                # Add failed source info
-                response_time = 0
-                if hasattr(result, 'get') and callable(getattr(result, 'get')):
-                    response_time = result.get("response_time_ms", 0)
-                elif isinstance(result, dict):
-                    response_time = result.get("response_time_ms", 0)
-                    
-                all_sources.append({
-                    "provider": provider,
-                    "status": "failure",
-                    "response_time_ms": response_time
-                })
-        
+                logger.error(f"✗ {provider} failed with exception")
+                all_sources.append({"provider": provider, "status": "failure wtih exception", "response_time_ms": 0})
         return weather_data, all_sources
     
     def _build_response(self, location: str, weather_data: List[Dict], all_sources: List[Dict]) -> Dict[str, Any]:
@@ -168,6 +153,7 @@ class WeatherAggregationService:
     async def _fetch_openweather(self, session: aiohttp.ClientSession, location: str, is_coords: bool, api_key: str) -> Optional[Dict[str, Any]]:
         """Fetch from OpenWeatherMap"""
         logger.debug("Fetching OpenWeatherMap")
+        result = None
         
         try:
             logger.debug(f"Fetching OpenWeatherMap for: {location}")
@@ -196,17 +182,21 @@ class WeatherAggregationService:
                     "humidity": data["main"]["humidity"],
                     "weathercode": weather_id,
                     "description": description,
-                    "source": {"provider": "OpenWeatherMap", "status": "success", "response_time_ms": result["elapsed_ms"]}
+                    "source": {"provider": "OpenWeatherMap", "status": "success", "response_time_ms": result["response_time_ms"]}
                 }
+            else:
+                logger.error(f"✗ OpenWeatherMap failed: {result}")
+                return {"source": {"provider": "OpenWeatherMap", "status": "failure", "response_time_ms": result["response_time_ms"]}}
                 
         except Exception as e:
             logger.error(f"OpenWeatherMap fetch error: {str(e)}")
+            raise
         
-        return {"source": {"provider": "OpenWeatherMap", "status": "failure", "response_time_ms": result["elapsed_ms"]}}
     
     async def _fetch_weatherapi(self, session: aiohttp.ClientSession, location: str, api_key: str) -> Optional[Dict[str, Any]]:
         """Fetch from WeatherAPI"""
         logger.debug("Fetching WeatherAPI")
+        result = None
         
         try:
             url = PROVIDERS["weatherapi"]["weather_url"]
@@ -229,17 +219,20 @@ class WeatherAggregationService:
                     "humidity": current["humidity"],
                     "weathercode": condition_code,
                     "description": description,
-                    "source": {"provider": "WeatherAPI", "status": "success", "response_time_ms": result["elapsed_ms"]}
+                    "source": {"provider": "WeatherAPI", "status": "success", "response_time_ms": result["response_time_ms"]}
                 }
+            else:
+                logger.error(f"✗ WeatherAPI failed: {result}")
+                return {"source": {"provider": "WeatherAPI", "status": "failure", "response_time_ms": result["response_time_ms"]}}
                 
         except Exception as e:
             logger.error(f"WeatherAPI error: {e}")
-        
-        return {"source": {"provider": "WeatherAPI", "status": "failure", "response_time_ms": result["elapsed_ms"]}}
+            raise
     
     async def _fetch_openmeteo(self, session: aiohttp.ClientSession, lat: float, lon: float) -> Optional[Dict[str, Any]]:
         """Fetch from Open-Meteo"""
         logger.debug("Fetching OpenMeteo")
+        result = None
         
         try:
             url = PROVIDERS["openmeteo"]["weather_url"]
@@ -262,13 +255,15 @@ class WeatherAggregationService:
                     "humidity": None,
                     "weathercode": weather_code,
                     "description": description,
-                    "source": {"provider": "OpenMeteo", "status": "success", "response_time_ms": result["elapsed_ms"]}
+                    "source": {"provider": "OpenMeteo", "status": "success", "response_time_ms": result["response_time_ms"]}
                 }
+            else:
+                logger.error(f"✗ OpenMeteo failed: {result}")
+                return {"source": {"provider": "OpenMeteo", "status": "failure", "response_time_ms": result["response_time_ms"]}}
                 
         except Exception as e:
             logger.error(f"OpenMeteo error: {e}")
-        
-        return {"source": {"provider": "OpenMeteo", "status": "failure", "response_time_ms": result["elapsed_ms"]}}
+            raise
     
     async def _fetch_openmeteo_with_location(self, session: aiohttp.ClientSession, location: str, is_coords: bool, 
                                            openweather_key: str) -> Optional[Dict[str, Any]]:
