@@ -44,6 +44,7 @@ async def get_weather(location: str) -> Dict[str, Any]:
     """Get aggregated weather data from multiple providers
 
     **Input formats:**
+    Please either provide a city name or coordinates with a comma.
     - City: "Singapore", "New York" 
     - Coordinates: "1.29,103.85"
     
@@ -52,6 +53,11 @@ async def get_weather(location: str) -> Dict[str, Any]:
     - Average humidity where available
     - Most common weather condition
     - Status of all providers
+
+    **Invalid input formats:**
+    - City: "a" / "123"
+    - Coordinates: "1.29,103.85,103.85" / "1.29,12222" / "12"
+    
     """
     logger.info(f"Weather request started: {location}")
     if not location or not location.strip():
