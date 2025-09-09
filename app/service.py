@@ -160,8 +160,8 @@ class WeatherAggregationService:
             },
             "humidity":round(average_humidity, 1) if average_humidity is not None else None,
             "conditions": most_common_description,
-            "source": all_sources,  # Now includes all providers (success + failure)
-            "timestamp_sg": get_singapore_timestamp(),
+            "sources": all_sources,  # includes all providers (success + failure)
+            "timestamp": get_singapore_timestamp(),
         }
     
     async def _fetch_openweather(self, location: str, is_coords: bool, api_key: str) -> Optional[Dict[str, Any]]:

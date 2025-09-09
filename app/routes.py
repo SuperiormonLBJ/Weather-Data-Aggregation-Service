@@ -10,6 +10,7 @@ from app.exceptions import (
     RESPONSE_EXAMPLES
 )
 from app.logger import get_logger
+from app.config import get_config_summary
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -85,3 +86,15 @@ async def get_weather(location: str) -> Dict[str, Any]:
     finally:
         if weather_service:
             await weather_service.close()
+
+@router.get("/config")
+def get_current_config():
+    """Get current service configuration"""
+    return get_config_summary()
+
+@router.delete("/cache")
+def clear_cache():
+    """Clear all cached data"""
+    from app.cache import weather_cache
+    weather_cache.clear()
+    return {"message": "Cache cleared successfully"}

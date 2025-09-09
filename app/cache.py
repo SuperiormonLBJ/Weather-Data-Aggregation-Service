@@ -1,8 +1,8 @@
 """ In-Memory Cache for Weather Data """
 import time
 from typing import Dict, Any, Optional
-import asyncio
 from dataclasses import dataclass
+from app.config import CACHE_TTL_SECONDS
 
 @dataclass
 class CacheEntry:
@@ -10,9 +10,10 @@ class CacheEntry:
     expires_at: float
 
 class SimpleWeatherCache:
-    def __init__(self, ttl_seconds: int = 900):  # 15 minutes default
+    def __init__(self, ttl_seconds: int = None):
+        # Use config value if not specified
+        self._ttl = ttl_seconds if ttl_seconds is not None else CACHE_TTL_SECONDS
         self._cache: Dict[str, CacheEntry] = {}
-        self._ttl = ttl_seconds
         
     def _cleanup_expired(self):
         """Remove expired entries"""
@@ -38,6 +39,6 @@ class SimpleWeatherCache:
     def clear(self):
         """Clear all cache"""
         self._cache.clear()
-    
-# unique global cache instance
+
+# Global cache instance using config
 weather_cache = SimpleWeatherCache()

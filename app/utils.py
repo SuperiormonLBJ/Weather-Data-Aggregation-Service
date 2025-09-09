@@ -5,12 +5,15 @@ import re
 import os
 from typing import Tuple
 from datetime import datetime, timezone, timedelta
+from app.config import OPENWEATHER_API_KEY, WEATHERAPI_KEY
 from app.exceptions import ValidationError, ConfigurationError
 
 
 def is_coordinates(location: str) -> bool:
-    """Check if location string represents coordinates"""
+    """Check if location is in coordinate format (lat,lon)"""
     location = location.strip()
+    
+    # Must contain exactly one comma
     if location.count(',') != 1:
         return False
     pattern = r'^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$'
@@ -35,6 +38,7 @@ def parse_coordinates(location: str) -> Tuple[float, float]:
     except ValueError:
         raise ValidationError("Both latitude and longitude must be valid numbers")
     
+    # Basic validation
     if not (-90 <= lat <= 90):
         raise ValidationError(f"Latitude {lat} is out of range. Must be between -90 and 90")
     
@@ -85,29 +89,22 @@ def validate_input_format(location: str) -> None:
 
 
 def validate_api_keys() -> Tuple[str, str]:
-    """Validate API keys"""
-    openweather_key = os.getenv('OPENWEATHER_API_KEY')
-    weatherapi_key = os.getenv('WEATHERAPI_KEY')
-    
+    """Validate API keys using config"""
     missing_keys = []
-    if not openweather_key:
+    
+    if not OPENWEATHER_API_KEY:
         missing_keys.append("OPENWEATHER_API_KEY")
-    if not weatherapi_key:
+    if not WEATHERAPI_KEY:
         missing_keys.append("WEATHERAPI_KEY")
     
     if missing_keys:
-        raise ConfigurationError(f"Missing required environment variables: {', '.join(missing_keys)}")
+        raise ConfigurationError(f"Missing required API keys: {', '.join(missing_keys)}")
     
-    return openweather_key, weatherapi_key
+    return OPENWEATHER_API_KEY, WEATHERAPI_KEY
 
 
 def get_singapore_timestamp() -> str:
     """Get current timestamp in Singapore timezone"""
-    try:
-        sg_offset = timedelta(hours=8)
-        sg_timezone = timezone(sg_offset)
-        sg_time = datetime.now(sg_timezone)
-        return sg_time.strftime("%Y-%m-%d %H:%M:%S SGT")
-    except Exception:
-        utc_time = datetime.utcnow()
-        return f"{utc_time.strftime('%Y-%m-%d %H:%M:%S')} UTC" 
+    singapore_tz = timezone(timedelta(hours=8))
+    now = datetime.now(singapore_tz)
+    return now.isoformat() 
