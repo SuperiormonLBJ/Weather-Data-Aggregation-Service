@@ -1,5 +1,11 @@
 """
 Simple HTTP helper with basic token bucket rate limiting
+
+The module is used to standardize API requests to the weather providers, 
+Inside it provides a simple HTTP helper with basic token bucket rate limiting, retry policy and timeout handling.
+
+Author: Li Beiji
+Version: 1.0.0
 """
 import random
 import aiohttp
@@ -10,58 +16,10 @@ from typing import Dict, Any, Optional
 
 # Import configurations from config module
 from ..config import TIMEOUTS, RATE_LIMITS, RETRY_CONFIG
+from ..core.rate_limiter import SimpleTokenBucket
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
-
-
-class SimpleTokenBucket:
-    """Simplified token bucket - just the essentials"""
-    
-    def __init__(self, provider: str):
-        config = RATE_LIMITS.get(provider, {"tokens": 60, "refill_per_sec": 1.0})
-        self.max_tokens = config["tokens"]
-        self.refill_rate = config["refill_per_sec"]
-        self.tokens = float(self.max_tokens)
-        self.last_refill = time.time()
-        self.provider = provider
-        
-        logger.debug(f"Token bucket created for {provider}: {self.max_tokens} tokens, {self.refill_rate}/sec refill")
-    
-    def _refill(self):
-        """Add tokens based on time passed"""
-        now = time.time()
-        time_passed = now - self.last_refill
-        tokens_to_add = time_passed * self.refill_rate
-        
-        self.tokens = min(self.max_tokens, self.tokens + tokens_to_add)
-        self.last_refill = now
-    
-    async def wait_for_token(self):
-        """Wait until we have at least 1 token"""
-        wait_started = False
-        start_time = time.time()
-        
-        while True:
-            self._refill()
-            if self.tokens >= 1.0:
-                self.tokens -= 1.0  # Consume token
-                
-                if wait_started:
-                    wait_time = time.time() - start_time
-                    logger.info(f"{self.provider} rate limit wait completed: {wait_time:.2f}s")
-                
-                logger.debug(f"{self.provider} token consumed, {self.tokens:.1f} remaining")
-                return
-            
-            if not wait_started:
-                logger.warning(f"{self.provider} rate limited - waiting for tokens (have {self.tokens:.1f})")
-                wait_started = True
-            
-            # Wait for next token
-            wait_time = 1.0 / self.refill_rate
-            await asyncio.sleep(wait_time)
-
 
 # Global token buckets for each provider
 _buckets = {}
@@ -94,7 +52,27 @@ def calculate_retry_delay(attempt: int) -> float:
 async def make_api_request(session: aiohttp.ClientSession, url: str, params: Dict[str, Any], 
                           timeout_key: str, provider_name: str) -> Dict[str, Any]:
     """
-    Make API request with simple token bucket rate limiting
+    Make API request with simple token bucket rate limiting, retry and timeout handling.
+
+    Args:
+        session: aiohttp.ClientSession
+        url: str
+        params: Dict[str, Any]
+        timeout_key: str
+        provider_name: str
+        
+    Returns:
+        Dict[str, Any]
+        
+    Raises:
+        asyncio.TimeoutError
+        aiohttp.ClientError
+        Exception
+        
+    Note:
+        - Rate limiting is handled by the token bucket
+        - Retry policy is handled by the retry delay
+        - Timeout handling is handled by the timeout config
     """
     logger.info(f"🌐 {provider_name} API request started")
     logger.debug(f"{provider_name} URL: {url}")
@@ -249,7 +227,24 @@ async def make_api_request(session: aiohttp.ClientSession, url: str, params: Dic
 
 
 def get_weather_description(mapping: Dict, code: int, fallback: str) -> str:
-    """Get weather description from mapping with fallback"""
+    """
+    Get weather description from standard mapping with fallback
+    
+    Args:
+        mapping: Dict
+        code: int
+        fallback: str
+
+    Returns:
+        str
+        
+    Raises:
+        KeyError
+        
+    Note:
+        - Mapping is used to map weather codes to descriptions
+        - Fallback is used when the code is not found in the mapping
+    """
     try:
         description = mapping[code].value
         logger.debug(f"Weather code {code} mapped to: {description}")

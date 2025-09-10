@@ -1,5 +1,18 @@
 """
 Logging setup for weather service
+
+Python built-in logging module is used for logging with standard logging practices.
+Data logged includes:
+    - HTTP requests and responses
+    - API calls
+    - Cache hits and misses
+    - Errors and exceptions
+    - Performance metrics
+    - Configuration changes
+    - timestamps
+
+Author: Li Beiji
+Version: 1.0.0
 """
 import asyncio
 import logging

@@ -1,6 +1,10 @@
 """
 Weather condition standardization system
-Maps all provider-specific weather conditions to standardized categories
+
+Maps all provider-specific weather conditions to standardized categories with ENUM
+
+Author: Li Beiji
+Version: 1.0.0
 """
 
 from enum import Enum

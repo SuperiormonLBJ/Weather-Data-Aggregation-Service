@@ -11,9 +11,15 @@ The API provides:
     - Cache management operations
     - Authentication information endpoints
 
-Authentication
-API Desgin
-Error Handling
+Authentication:
+    - Bearer token authentication
+    - Role-based access control
+    - API key validation
+
+API Desgin:
+    - Weather data aggregation -> GET /weather
+    - Administrative configuration access -> GET /config
+    - Cache management operations -> DELETE /cache
 
 Author: Li Beiji
 Version: 1.0.0
@@ -93,50 +99,9 @@ async def get_weather(
     (OpenWeatherMap, WeatherAPI.com, Open-Meteo) and returns intelligently aggregated
     results with median temperature, average humidity, and consensus weather conditions.
     
-    **Access Level:** Normal User or Admin
-    
     **Authentication:** Bearer Token Required
     - Use `Authorization: Bearer 123` for normal user
     - Use `Authorization: Bearer abc` for admin user
-    
-    **Input formats:**
-    Please either provide a city name or coordinates with a comma.
-    - City: "Singapore", "New York" 
-    - Coordinates: "1.29,103.85"
-    
-    **Returns:**
-    - Median temperature from all providers
-    - Average humidity where available
-    - Most common weather condition
-    - Status of all providers
-
-    **Invalid input formats:**
-    - City: "a" / "123"
-    - Coordinates: "1.29,103.85,103.85" / "1.29,12222" / "12"
-    
-    **Response Data:**
-    The aggregated response includes:
-    - **Temperature**: Median value from all successful providers (°C)
-    - **Humidity**: Average humidity percentage when available
-    - **Conditions**: Most common weather condition description
-    - **Source Metadata**: Individual provider response details and performance
-    - **Timestamp**: Request timestamp in Singapore timezone (SGT)
-    
-    **Provider Fault Tolerance:**
-    - Service continues operating even if some providers fail
-    - Minimum one successful provider response required
-    - Failed providers are reported in source metadata for monitoring
-    
-    **Performance Characteristics:**
-    - Typical response time: 1-3 seconds (concurrent provider requests)
-    - Cached responses: <100ms (10-minute cache TTL)
-    - Rate limiting: Automatic throttling prevents API quota exhaustion
-    
-    **Error Scenarios:**
-    - Invalid location formats trigger validation errors with specific guidance
-    - All provider failures result in service unavailable errors
-    - Network timeouts are handled with automatic retries
-    - Invalid API keys return authentication errors
     
     Args:
         location (str): Location query (city name or coordinates)
@@ -251,43 +216,6 @@ def get_current_config(api_key: str = Depends(verify_admin_user)) -> Dict[str, A
     
     **Authentication:** Bearer Token Required
     - Use `Authorization: Bearer abc` for admin access
-    
-    **Configuration Information Included:**
-    
-    **Service Details:**
-    - Service name, version, and current environment
-    - Deployment and runtime information
-    
-    **Provider Configuration:**
-    - List of available weather data providers
-    - Configuration status for each provider
-    - API key validation status (without exposing actual keys)
-    
-    **Performance Settings:**
-    - Cache configuration and TTL settings
-    - Network timeout configurations per provider  
-    - Rate limiting parameters and token bucket settings
-    - Retry policy configuration with backoff parameters
-    
-    **Connection Management:**
-    - HTTP connection pool settings
-    - Keep-alive timeout configuration
-    - Per-host connection limits
-    
-    **Logging Configuration:**
-    - Current log level and output configuration
-    - Log file location and format settings
-    
-    **Use Cases:**
-    - System monitoring and health checks
-    - Performance tuning and optimization
-    - Debugging configuration issues
-    - Compliance and audit reporting
-    - Capacity planning and scaling decisions
-    
-    **Security Note:**
-    Sensitive information like API keys is masked or omitted from the response.
-    Only configuration metadata and non-sensitive settings are exposed.
     
     Args:
         api_key (str): Validated admin API key from authentication dependency

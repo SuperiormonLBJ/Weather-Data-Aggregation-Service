@@ -1,3 +1,19 @@
+"""
+Main module for Weather Data Aggregation Service
+
+This module is the entry point for the application.
+It is responsible for:
+    - Loading environment variables
+    - Setting up logging
+    - Creating the FastAPI app
+    - Including routes (weather, config, cache)
+    - Defining the root endpoint
+    - Defining the health endpoint
+
+Author: Li Beiji
+Version: 1.0.0
+"""
+
 import os
 from dotenv import load_dotenv
 from fastapi import FastAPI

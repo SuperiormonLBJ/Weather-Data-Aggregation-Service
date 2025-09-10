@@ -1,5 +1,8 @@
 """
 Centralized exceptions for Weather Data Aggregation Service
+
+Author: Li Beiji
+Version: 1.0.0
 """
 
 # Base exception

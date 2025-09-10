@@ -1,4 +1,19 @@
-""" In-Memory Cache for Weather Data """
+""" 
+In-Memory Cache Module for Weather Data 
+
+This module provides an in-memory cache for weather data.
+It uses a simple cache implementation with a fixed TTL.
+
+Decision on using in-memory cache instead of Redis:
+- Simple implementation
+- No additional dependencies
+- Suitable for small-scale application
+- Suitable for development and testing
+- Suitable for small-scale application
+
+Author: Li Beiji
+Version: 1.0.0
+"""
 import time
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
@@ -11,7 +26,7 @@ class CacheEntry:
 
 class SimpleWeatherCache:
     def __init__(self, ttl_seconds: int = None):
-        # Use config value if not specified
+        """Use config value if not specified"""
         self._ttl = ttl_seconds if ttl_seconds is not None else CACHE_TTL_SECONDS
         self._cache: Dict[str, CacheEntry] = {}
         

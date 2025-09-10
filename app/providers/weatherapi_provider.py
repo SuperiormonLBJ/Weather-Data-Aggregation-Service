@@ -15,13 +15,17 @@ class WeatherAPIProvider(BaseWeatherProvider):
         super().__init__("WeatherAPI", "weatherapi")
     
     def _prepare_request_params(self, location: str, is_coords: bool, api_key: str) -> Tuple[str, Dict[str, Any]]:
-        """Prepare WeatherAPI request parameters"""
+        """
+        [Over-ride] Prepare WeatherAPI request parameters
+        """
         url = PROVIDERS["weatherapi"]["weather_url"]
         params = {"key": api_key, "q": location}
         return url, params
     
     def _process_successful_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """Process WeatherAPI successful response"""
+        """
+        [Over-ride] Process WeatherAPI successful response
+        """
         data = result["data"]
         current = data["current"]
         condition_code = current["condition"]["code"]

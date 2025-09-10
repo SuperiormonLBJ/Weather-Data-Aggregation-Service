@@ -19,9 +19,11 @@ class OpenWeatherProvider(BaseWeatherProvider):
         super().__init__("OpenWeatherMap", "openweather")
     
     def _prepare_request_params(self, location: str, is_coords: bool, api_key: str) -> Tuple[str, Dict[str, Any]]:
-        """Prepare OpenWeatherMap request parameters"""
+        """
+        [Over-ride] Prepare OpenWeatherMap request parameters
+        """
         url = PROVIDERS["openweather"]["weather_url"]
-        
+
         if is_coords:
             lat, lon = parse_coordinates(location)
             params = {"lat": lat, "lon": lon, "appid": api_key, "units": "metric"}
@@ -31,7 +33,9 @@ class OpenWeatherProvider(BaseWeatherProvider):
         return url, params
     
     def _process_successful_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """Process OpenWeatherMap successful response"""
+        """
+        [Over-ride] Process OpenWeatherMap successful response
+        """
         data = result["data"]
         weather_id = data["weather"][0]["id"]
         description = self._get_weather_description(

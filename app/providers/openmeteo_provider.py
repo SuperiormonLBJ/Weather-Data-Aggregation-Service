@@ -21,7 +21,26 @@ class OpenMeteoProvider(BaseWeatherProvider):
     
     async def fetch_weather(self, session: aiohttp.ClientSession, location: str, 
                            is_coords: bool, api_key: str) -> Optional[Dict[str, Any]]:
-        """Override to handle geocoding for city names"""
+        """
+        [Over-ride] Override to handle geocoding for city names for openmeteo case
+
+        Args:
+            session: aiohttp.ClientSession
+            location: str
+            is_coords: bool
+            api_key: str
+            
+        Returns:
+            Optional[Dict[str, Any]] -> weather data
+            
+        Raises:
+            Exception
+            
+        Note:
+            - OpenMeteo API is used to fetch weather data using coordinates
+            - If city name is provided, it is geocoded to coordinates first
+            - If coordinates are provided, it is used directly
+        """
         try:
             if is_coords:
                 lat, lon = parse_coordinates(location)
@@ -38,7 +57,17 @@ class OpenMeteoProvider(BaseWeatherProvider):
         return None
     
     async def _fetch_with_coordinates(self, session: aiohttp.ClientSession, lat: float, lon: float) -> Optional[Dict[str, Any]]:
-        """Fetch weather data using coordinates"""
+        """
+        Fetch weather data using coordinates
+
+        Args:
+            session: aiohttp.ClientSession
+            lat: float
+            lon: float
+            
+        Returns:
+            Optional[Dict[str, Any]] -> weather data
+        """
         url, params = self._prepare_request_params(f"{lat},{lon}", True, "")
         result = await make_api_request(session, url, params, self.timeout_key, self.provider_name)
         
@@ -49,7 +78,9 @@ class OpenMeteoProvider(BaseWeatherProvider):
             return self._create_failure_response(result)
     
     def _prepare_request_params(self, location: str, is_coords: bool, api_key: str) -> Tuple[str, Dict[str, Any]]:
-        """Prepare OpenMeteo request parameters"""
+        """
+        [Over-ride] Prepare OpenMeteo request parameters
+        """
         url = PROVIDERS["openmeteo"]["weather_url"]
         
         if is_coords:
@@ -62,7 +93,9 @@ class OpenMeteoProvider(BaseWeatherProvider):
         return url, params
     
     def _process_successful_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """Process OpenMeteo successful response"""
+        """
+        [Over-ride] Process OpenMeteo successful response
+        """
         data = result["data"]
         current = data["current_weather"]
         weather_code = current["weathercode"]
@@ -86,7 +119,23 @@ class OpenMeteoProvider(BaseWeatherProvider):
         }
     
     async def _geocode_location(self, session: aiohttp.ClientSession, city_name: str, api_key: str) -> Optional[Tuple[float, float]]:
-        """Geocode city name to coordinates using OpenWeatherMap geocoding API"""
+        """
+        Geocode city name to coordinates using OpenWeatherMap geocoding API
+
+        Args:
+            session: aiohttp.ClientSession
+            city_name: str
+            api_key: str
+            
+        Returns:
+            Optional[Tuple[float, float]]
+            
+        Raises:
+            Exception
+            
+        Note:
+            - OpenWeatherMap geocoding API is used to geocode city names to coordinates
+        """
         logger.debug(f"Geocoding: {city_name}")
         
         try:

@@ -1,3 +1,15 @@
+"""
+Weather Aggregation Service Module
+
+This module provides the core weather aggregation service.
+It is responsible for:
+    - Fetching weather data from multiple providers
+    - Aggregating the data
+    - Returning the aggregated data
+
+Author: Li Beiji
+Version: 1.0.0
+"""
 import asyncio
 import aiohttp
 import time
@@ -31,7 +43,25 @@ class WeatherAggregationService:
 
     @log_time
     async def get_aggregated_weather(self, location: str) -> Dict[str, Any]:
-        """Main method to get aggregated weather data"""
+        """
+        Main method to get aggregated weather data
+        
+        Args:
+            location: str
+            
+        Returns:
+            Dict[str, Any] -> aggregated weather data
+            
+        Raises:
+            ProviderError
+            Exception
+            
+        Note:
+            - Cache is checked first
+            - API keys are validated
+            - Providers are fetched in parallel
+            - Results are processed and aggregated
+        """
         start_time = time.perf_counter()
         
         try:
@@ -85,7 +115,22 @@ class WeatherAggregationService:
     
     async def _fetch_all_providers(self, session: aiohttp.ClientSession, location: str, is_coords: bool, 
                                   openweather_key: str, weatherapi_key: str) -> List[Any]:
-        """Fetch from all providers in parallel"""
+        """
+        Fetch from all providers in parallel
+        
+        Args:
+            session: aiohttp.ClientSession
+            location: str
+            is_coords: bool
+            openweather_key: str
+            weatherapi_key: str
+            
+        Returns:
+            List[Any] -> combined results from all providers
+            
+        Raises:
+            Exception
+        """
         tasks = [
             self.openweather_provider.fetch_weather(session, location, is_coords, openweather_key),
             self.weatherapi_provider.fetch_weather(session, location, is_coords, weatherapi_key),
@@ -117,7 +162,25 @@ class WeatherAggregationService:
         return weather_data, all_sources
     
     def _build_response(self, location: str, weather_data: List[Dict], all_sources: List[Dict]) -> Dict[str, Any]:
-        """Build the final aggregated response with all provider sources"""
+        """
+        Build the final aggregated response with all provider sources
+        
+        Args:
+            location: str
+            weather_data: List[Dict]
+            all_sources: List[Dict]
+
+        Returns:
+            Dict[str, Any] -> aggregated weather data
+            
+        Raises:
+            Exception
+            
+        Note:
+            - Aggregated values are calculated
+            - Timestamp is added in Singapore timezone
+            - Sources are included
+        """
         # Calculate aggregated values
         logger.debug("Building response")
         temperatures = [data["temperature"] for data in weather_data if data["temperature"] is not None]

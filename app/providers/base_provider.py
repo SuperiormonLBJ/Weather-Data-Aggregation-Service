@@ -80,7 +80,7 @@ class BaseWeatherProvider(ABC):
         api_key: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Fetch weather data from the provider's API.
+        Fetch weather data from the provider's API. For openweather and weatherapi only
         
         This is the main entry point for weather data retrieval. It orchestrates
         the complete workflow: parameter preparation, API request, response processing,
@@ -141,28 +141,6 @@ class BaseWeatherProvider(ABC):
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Prepare provider-specific URL and parameters for the API request.
-        
-        This abstract method must be implemented by concrete provider classes
-        to define how location data and API keys are formatted for their
-        specific API endpoints.
-        
-        Args:
-            location (str): Location query string
-            is_coords (bool): Whether location represents coordinates  
-            api_key (str): Provider API key
-            
-        Returns:
-            Tuple[str, Dict[str, Any]]: (API endpoint URL, request parameters dict)
-            
-        Example Implementation:
-            def _prepare_request_params(self, location, is_coords, api_key):
-                url = "https://api.myweather.com/current"
-                params = {
-                    "key": api_key,
-                    "q": location,
-                    "format": "json"
-                }
-                return url, params
         """
         pass
     
@@ -170,39 +148,6 @@ class BaseWeatherProvider(ABC):
     def _process_successful_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process successful API response into standardized format.
-        
-        This abstract method must be implemented by concrete provider classes
-        to transform their API-specific response format into the standardized
-        weather data format used throughout the application.
-        
-        Args:
-            result (Dict[str, Any]): Successful API response from make_api_request()
-                Contains keys: provider, status, response_time_ms, data, attempts
-                
-        Returns:
-            Dict[str, Any]: Standardized weather data dictionary
-            
-        The standardized format should include:
-            - name (str): Location name
-            - temperature (float): Temperature in Celsius
-            - humidity (float): Humidity percentage  
-            - description (str): Weather condition description
-            - source (Dict): Provider metadata
-            
-        Example Implementation:
-            def _process_successful_response(self, result):
-                data = result["data"]
-                return {
-                    "name": data["location"]["name"],
-                    "temperature": data["current"]["temp_c"], 
-                    "humidity": data["current"]["humidity"],
-                    "description": data["current"]["condition"]["text"],
-                    "source": {
-                        "provider": self.provider_name,
-                        "status": "success",
-                        "response_time_ms": result["response_time_ms"]
-                    }
-                }
         """
         pass
     

@@ -1,5 +1,11 @@
 """
 Global HTTP session with connection pooling
+
+This module provides a global consistentHTTP session with connection pooling.
+So connection can be reused across requests.
+
+Author: Li Beiji
+Version: 1.0.0
 """
 import aiohttp
 from typing import Optional
