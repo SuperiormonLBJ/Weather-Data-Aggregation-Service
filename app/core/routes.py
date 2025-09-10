@@ -309,3 +309,49 @@ def clear_cache(api_key: str = Depends(verify_admin_user)) -> Dict[str, Any]:
         "timestamp": timestamp,
         "operation": "cache_clear"
     }
+
+@router.get(
+    "/cache/stats",
+    responses={
+        200: {
+            "description": "Cache statistics",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "hits": 100,
+                        "misses": 20,
+                        "total_requests": 120,
+                        "hit_ratio": 83.33
+                    }
+                }
+            }
+        }
+    }
+)
+def get_cache_stats(api_key: str = Depends(verify_admin_user)) -> Dict[str, Any]:
+    """
+    Get cache statistics.
+    
+    This endpoint provides detailed statistics about the current cache, including
+    hits, misses, total requests, and hit ratio. It's designed for monitoring,
+    debugging, and administrative oversight.
+    
+    **Access Level:** Admin Only
+    
+    **Authentication:** Bearer Token Required
+    - Use `Authorization: Bearer abc` for admin access
+    
+    Args:
+        api_key (str): Validated admin API key from authentication dependency
+        
+    Returns:
+        Dict[str, Any]: Cache statistics with sanitized data
+        
+    Raises:
+        HTTPException:
+            - 401: Authentication required or invalid API key
+            - 403: Administrative access required (normal user attempted access)
+    """
+    
+    from .cache import weather_cache
+    return weather_cache.get_stats()
