@@ -74,13 +74,13 @@ WEATHERAPI_KEY=your_weatherapi_key_here
 ```
 
 ### 4. Run the Application
-**Option 1**
+**Option 1 - run with uvicorn**
 ```bash
 # Development mode with auto-reload, using .env
 uvicorn app.core.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Option 2**
+**Option 2 - run with prepared scripts for specifed environment**
 ```bash
 # Run with deployment scripts to specify environment
 ./scripts/run-dev.sh
@@ -89,10 +89,13 @@ uvicorn app.core.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 5. API testing commands
+**Option 1-Test on Swagger**
+### View API documentation with authentication info [Recommended]
+### open http://localhost:8000/docs
 
+**Option 2-Test via curl/Postman**
 ```bash
-# View API documentation with authentication info [Recommended]
-open http://localhost:8000/docs
+
 
 # Health check (no authentication required)
 curl http://localhost:8000/health
