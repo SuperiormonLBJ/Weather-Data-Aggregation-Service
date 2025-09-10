@@ -1,3 +1,4 @@
+import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
@@ -7,7 +8,8 @@ from .logger import setup_logging, get_logger
 from ..http.http_client import get_global_session, close_global_session
 
 # Load environment
-load_dotenv()
+env_file = os.getenv('ENV_FILE', '.env')
+load_dotenv(env_file)
 
 # Setup logging first
 setup_logging()
