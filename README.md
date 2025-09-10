@@ -12,16 +12,14 @@ A professional RESTful API service that aggregates real-time weather data from 3
   - [3. Configure Environment with .env](#3-configure-environment-with-env)
   - [4. Run the Application](#4-run-the-application)
   - [5. API Testing Commands](#5-api-testing-commands)
-- [🐳 Docker Deployment](#-docker-deployment)
-- [🔧 Configuration Options](#-configuration-options)
-- [🕥 Load Testing with Authentication](#-load-testing-with-authentication)
 - [📚 API Documentation](#-api-documentation)
   - [🔐 Authentication & Authorization](#-authentication--authorization)
   - [📡 API Endpoints](#-api-endpoints)
   - [🚨 Error Responses](#-error-responses)
-  - [🎯 Response Features](#-response-features)
-  - [🔧 Integration Examples](#-integration-examples)
 - [🧪 Unit Test & Functional Test](#-unit-test--functional-test)
+- [🐳 Docker Deployment](#-docker-deployment)
+- [🔧 Configuration Options](#-configuration-options)
+- [🕥 Load Testing with Authentication](#-load-testing-with-authentication)
 
 ---
 
@@ -177,42 +175,6 @@ curl -H "Authorization: Bearer invalid" \
 # Test normal user accessing admin endpoint (should fail with 403)
 curl -H "Authorization: Bearer 123" \
      "http://localhost:8000/api/v1/config"
-
-```
-
-## 🐳 Docker Deployment
-
-### Single Instance (Development)
-
-```bash
-# Build image on Dockerfile folder
-docker build -t weather-api .
-
-# Run container and test on local port 8000
-docker run -p 8000:8000 weather-api
-```
-
-## 🔧 Configuration Options
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEBUG` | `false` | Enable debug mode |
-| `LOG_LEVEL` | `INFO` | Logging level: DEBUG, INFO, WARNING, ERROR |
-| `REQUEST_TIMEOUT` | `10` | API request timeout in seconds |
-
-### 🕥 Load Testing with Authentication
-
-```bash
-# Install hey for load testing
-# macOS: brew install hey
-# Linux: go install github.com/rakyll/hey@latest
-
-# Test weather endpoint with bearer token authentication
-hey -n 100 -c 10 \
-    -H "Authorization: Bearer 123" \
-    "http://localhost:8000/api/v1/weather?location=Singapore"
 
 ```
 
@@ -405,25 +367,13 @@ curl -X DELETE -H "Authorization: Bearer abc" \
 {
   "detail": "Invalid location format. Use city name or 'lat,lon' coordinates."
 }
-
-// 422 Unprocessable Entity - Missing required parameters
-{
-  "detail": [
-    {
-      "loc": ["query", "location"],
-      "msg": "field required",
-      "type": "value_error.missing"
-    }
-  ]
-}
 ```
 
 #### Service Errors
 ```json
-// 503 Service Unavailable - All providers failed
+// 500 Internal Server Error
 {
-  "detail": "Weather service temporarily unavailable. All providers failed.",
-  "error_code": "ALL_PROVIDERS_FAILED"
+  "detail": "Service error: All weather providers failed to return current weather data for this location now, please try again later or change location."
 }
 
 // 429 Too Many Requests - Rate limit exceeded
@@ -433,6 +383,41 @@ curl -X DELETE -H "Authorization: Bearer abc" \
 }
 ```
 
+## 🐳 Docker Deployment
+
+### Single Instance (Development)
+
+```bash
+# Build image on Dockerfile folder
+docker build -t weather-api .
+
+# Run container and test on local port 8000
+docker run -p 8000:8000 weather-api
+```
+
+## 🔧 Configuration Options
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEBUG` | `false` | Enable debug mode |
+| `LOG_LEVEL` | `INFO` | Logging level: DEBUG, INFO, WARNING, ERROR |
+| `REQUEST_TIMEOUT` | `10` | API request timeout in seconds |
+
+### 🕥 Load Testing with Authentication
+
+```bash
+# Install hey for load testing
+# macOS: brew install hey
+# Linux: go install github.com/rakyll/hey@latest
+
+# Test weather endpoint with bearer token authentication
+hey -n 100 -c 10 \
+    -H "Authorization: Bearer 123" \
+    "http://localhost:8000/api/v1/weather?location=Singapore"
+
+```
 
 ## 🧪 Unit Test & Functional Test
 
