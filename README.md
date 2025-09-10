@@ -1,20 +1,27 @@
 # Weather Data Aggregation Service
 
-A professional RESTful API service that aggregates real-time weather data from multiple providers with intelligent fallback handling, rate limiting, and caching.
+A professional RESTful API service that aggregates real-time weather data from 3 providers with intelligent fallback handling, rate limiting, RBAC and caching.
 
-## 🌟 Features
+## 🌟 Features/Highlights
 
 - **Multi-Provider Aggregation**: Combines data from OpenWeatherMap, WeatherAPI.com, and Open-Meteo
-- **Parallel Processing**: Concurrent API calls for optimal performance (1-2s total response time)
+- **Parallel Processing**: Concurrent Async API calls for optimal performance (1-2s total response time)
+- **Persistent Session Management**: Reuse connection more efficiently and cut down waiting time
 - **Smart Caching**: In-memory cache for fast read
-- **Fault Tolerance**: Service continues even when some providers fail
-- **Rate Limiting**: Token bucket algorithm prevents API quota exhaustion
-- **Global Support**: Accepts both city names and coordinates worldwide
+- **Input Validation**: Validate on input, ensuring backend safety
+- **Fault Tolerance**: Service continues even when some providers fail with proper logging and error handling
+- **Rate Limiting**: Token bucket algorithm prevents API quota exhaustion for OpenWeatherMap (60calls/min)
+- **Global Support**: Accepts either city names and coordinates worldwide, even for OpenMeteo it will be able to take cityname now (By default only takes coordinates)
+- **Weather Condition Standardization**: Converts different weather description from multi providers into a standard mapping list
+- **Deployable Dockerfile**: Wrap up reuqired dependencies into portable docker image
 
 ## 📋 Prerequisites
 
 - **Python 3.11+**
-- **API Keys** from weather providers
+- **API Keys** from OpenWeatherMap and WeatherAPI
+    - **OpenWeatherMap**: [https://openweathermap.org/api](https://openweathermap.org/api) (60 calls/minute free)
+    - **WeatherAPI**: [https://www.weatherapi.com/signup.aspx](https://www.weatherapi.com/signup.aspx) (1M calls/month free)
+
 
 ## 🚀 Quick Start
 
@@ -37,24 +44,17 @@ source weather-env/bin/activate
 # On Windows:
 weather-env\Scripts\activate
 
-# Install dependencies
+# Install dependencies in virtual environment
 pip install -r requirements.txt
 ```
 
-### 3. Get API Keys
-
-Sign up for free API keys:
-
-- **OpenWeatherMap**: [https://openweathermap.org/api](https://openweathermap.org/api) (60 calls/minute free)
-- **WeatherAPI**: [https://www.weatherapi.com/signup.aspx](https://www.weatherapi.com/signup.aspx) (1M calls/month free)
-
-### 4. Configure Environment
+### 3. Configure Environment with .env
 
 ```bash
-# Copy environment template
+# Copy environment template and update your API keys inside .env
 cp .env.example .env
 
-# Edit .env and update with your API keys
+# Optional, you can update and create your own .env.dev, .env.uat and .env.prod with different configuration for each environment
 ```
 
 **.env file:**
@@ -63,32 +63,95 @@ cp .env.example .env
 OPENWEATHER_API_KEY=your_openweather_api_key_here
 WEATHERAPI_KEY=your_weatherapi_key_here
 
+(Optional)
 # Logging level configuration
-DEBUG=true
-LOG_LEVEL=DEBUG
+# Application Settings
+# Cache TTL
+# Timeout
+# Rate Limiting
+# Retry
+# Connection Pool
 ```
 
-### 5. Run the Application
-
+### 4. Run the Application
+**Option 1**
 ```bash
-# Development mode with auto-reload
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Development mode with auto-reload, using .env
+uvicorn app.core.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 6. API testing commands
+**Option 2**
+```bash
+# Run with deployment scripts to specify environment
+./scripts/run-dev.sh
+./scripts/run-uat.sh
+./scripts/run-prod.sh
+```
+
+### 5. API testing commands
 
 ```bash
-# Health check
+# View API documentation with authentication info [Recommended]
+open http://localhost:8000/docs
+
+# Health check (no authentication required)
 curl http://localhost:8000/health
 
+# Root endpoint (no authentication required)
+curl http://localhost:8000/
+
+# ============================================================================
+# AUTHENTICATED ENDPOINTS (Bearer Token Required)
+# ============================================================================
+
+# Weather API - Normal User Access (Bearer Token: 123)
+# 123 is normal user
 # Get weather by city name
+curl -H "Authorization: Bearer 123" \
+     "http://localhost:8000/api/v1/weather?location=Singapore"
+
+# Get weather by coordinates  
+curl -H "Authorization: Bearer 123" \
+     "http://localhost:8000/api/v1/weather?location=1.29,103.85"
+
+# Test multiple locations
+curl -H "Authorization: Bearer 123" \
+     "http://localhost:8000/api/v1/weather?location=New York"
+
+curl -H "Authorization: Bearer 123" \
+     "http://localhost:8000/api/v1/weather?location=Tokyo"
+
+curl -H "Authorization: Bearer 123" \
+     "http://localhost:8000/api/v1/weather?location=40.7128,-74.0060"
+
+# ============================================================================
+# ADMIN ENDPOINTS (Admin Bearer Token Required: abc)
+# ============================================================================
+
+# Get system configuration (Admin only)
+# abc is admin user
+curl -H "Authorization: Bearer abc" \
+     "http://localhost:8000/api/v1/config"
+
+# Clear cache (Admin only)
+curl -X DELETE -H "Authorization: Bearer abc" \
+     "http://localhost:8000/api/v1/cache"
+
+# ============================================================================
+# AUTHENTICATION TESTING
+# ============================================================================
+
+# Test without authentication (should fail with 401/403)
 curl "http://localhost:8000/api/v1/weather?location=Singapore"
 
-# Get weather by coordinates
-curl "http://localhost:8000/api/v1/weather?location=1.29,103.85"
+# Test with invalid token (should fail with 401/403)
+curl -H "Authorization: Bearer invalid" \
+     "http://localhost:8000/api/v1/weather?location=Singapore"
 
-# View API documentation
-open http://localhost:8000/docs
+# Test normal user accessing admin endpoint (should fail with 403)
+curl -H "Authorization: Bearer 123" \
+     "http://localhost:8000/api/v1/config"
+
 ```
 
 ## 🐳 Docker Deployment
@@ -96,7 +159,7 @@ open http://localhost:8000/docs
 ### Single Instance (Development)
 
 ```bash
-# Build image
+# Build image on Dockerfile folder
 docker build -t weather-api .
 
 # Run container and test on local port 8000
@@ -113,77 +176,24 @@ docker run -p 8000:8000 weather-api
 | `LOG_LEVEL` | `INFO` | Logging level: DEBUG, INFO, WARNING, ERROR |
 | `REQUEST_TIMEOUT` | `10` | API request timeout in seconds |
 
-### Cache Backends
-
-- **`memory`**: In-memory cache (single instance only)
-
-## 🧪 Testing
-
-### Manual Testing
-
-```bash
-# Test different locations
-curl "http://localhost:8000/api/v1/weather?location=New York"
-curl "http://localhost:8000/api/v1/weather?location=40.7128,-74.0060"
-curl "http://localhost:8000/api/v1/weather?location=Tokyo"
-
-# Test cache performance
-curl "http://localhost:8000/api/v1/cache/stats"
-
-# Test provider information
-curl "http://localhost:8000/api/v1/weather/providers"
-```
-
-### Load Testing 
+### 🕥 Load Testing  
 
 ```bash
 # Install hey for load testing
 # macOS: brew install hey
 # Linux: go install github.com/rakyll/hey@latest
 
-# Test single endpoint
+# Test single endpoint -> test on caching and async
 hey -n 100 -c 10 "http://localhost:8000/api/v1/weather?location=Singapore"
-
-# Test load balancer
-hey -n 1000 -c 20 http://localhost/health
 ```
 
-## 📊 Monitoring & Health Checks
 
-### Health Endpoints
+## 🧪 Unit Test & Functional Test
 
 ```bash
-# Basic health check
-curl http://localhost:8000/health
+# Run unit test with coverage and report
+python -m pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
 
-# Detailed configuration (development only)
-curl http://localhost:8000/config
-
-# Cache statistics
-curl http://localhost:8000/api/v1/cache/stats  --------------------------
-
+# Run funcitnoal test only
+python -m pytest tests/test_functional.py -v
 ```
-
-
-## 🔒 Security
-
-### API Key Management
-
-```bash
-# ❌ Never commit actual keys to git
-echo ".env" >> .gitignore
-
-# ✅ Use environment-specific files
-cp .env.example .env
-# Edit with development keys
-```
-
-## 🔗 Links
-
-- **OpenWeatherMap API**: [https://openweathermap.org/api](https://openweathermap.org/api)
-- **WeatherAPI.com**: [https://www.weatherapi.com/](https://www.weatherapi.com/)
-- **Open-Meteo**: [https://open-meteo.com/](https://open-meteo.com/)
-- **FastAPI Documentation**: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)
-- **Docker Compose**: [https://docs.docker.com/compose/](https://docs.docker.com/compose/)
-
-
