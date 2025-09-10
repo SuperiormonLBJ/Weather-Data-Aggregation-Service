@@ -1,5 +1,12 @@
 """
-Configuration settings for the Weather Data Aggregation Service
+Configuration Management Module
+
+This module centralizes all configuration settings for the Weather Data Aggregation Service,
+including API credentials, caching parameters, logging configuration, network timeouts,
+rate limiting, and retry policies.
+
+Author: Li Beiji
+Version: 1.0.0
 """
 import os
 import aiohttp
@@ -10,8 +17,10 @@ env_file = os.getenv('ENV_FILE', '.env')
 load_dotenv(env_file)
 
 # ============================================================================
-# API CREDENTIALS
+# API CREDENTIALS CONFIGURATION
 # ============================================================================
+# Weather provider API keys loaded from environment variables
+# These should be set via secure environment variable management in production
 
 OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
 WEATHERAPI_KEY = os.getenv('WEATHERAPI_KEY')
@@ -19,12 +28,14 @@ WEATHERAPI_KEY = os.getenv('WEATHERAPI_KEY')
 # ============================================================================
 # CACHE CONFIGURATION  
 # ============================================================================
+# In-memory caching settings for weather data to reduce API calls
 
 CACHE_TTL_SECONDS: int = int(os.getenv('CACHE_TTL', '600'))  # 10 minutes default
 
 # ============================================================================
 # LOGGING CONFIGURATION
 # ============================================================================
+# Centralized logging configuration for the entire application
 
 LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO').upper()
 LOG_FILE: str = os.getenv('LOG_FILE', 'logs/weather.log')
@@ -34,7 +45,9 @@ LOG_DATE_FORMAT: str = '%H:%M:%S'
 # ============================================================================
 # API TIMEOUT CONFIGURATIONS
 # ============================================================================
+# Per-provider timeout settings to handle varying API response times
 
+# OpenWeatherMap timeout configuration
 OPENWEATHER_TIMEOUT_TOTAL: float = float(os.getenv('OPENWEATHER_TIMEOUT_TOTAL', '7.0'))
 OPENWEATHER_TIMEOUT_CONNECT: float = float(os.getenv('OPENWEATHER_TIMEOUT_CONNECT', '2.0'))
 
