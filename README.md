@@ -5,6 +5,7 @@ A professional RESTful API service that aggregates real-time weather data from 3
 ## 📑 Table of Contents
 
 - [🌟 Features/Highlights](#-featureshighlights)
+- [⚖️ Architectural Decisions & Tradeoffs](#️-architectural-decisions--tradeoffs)
 - [📋 Prerequisites](#-prerequisites)
 - [🚀 Quick Start](#-quick-start)
   - [1. Clone Repository](#1-clone-repository)
@@ -36,13 +37,73 @@ A professional RESTful API service that aggregates real-time weather data from 3
 - **Weather Condition Standardization**: Converts different weather description from multi providers into a standard mapping list
 - **Deployable Dockerfile**: Wrap up reuqired dependencies into portable docker image
 
+## ⚖️ Architectural Decisions & Tradeoffs
+
+#### **1. Asynchronous I/O Pattern (async/await)**
+- **Decision**: Full async implementation using `aiohttp` and `asyncio`
+- **Rationale**: Weather APIs are I/O-bound operations perfect for async handling
+- **Benefits**: Concurrent request processing, 1-2s total response time instead of 5-6s, efficient resource utilization
+- **Tradeoffs**: Increased code complexity vs. dramatic performance gains for concurrent requests
+
+#### **2. In-Memory Caching over Redis Caching**
+- **Decision**: Simple in-memory cache with TTL (10 minutes default)
+- **Assumptions**: 
+  - Small to medium scale (hundreds of requests/minute) 
+  - Weather data doesn't change frequently
+- **Benefits**: No external dependencies, faster access, simple implementation
+- **Tradeoffs**: Lost cache on restart, no sharing between instances vs. operational simplicity
+
+#### **3. Bearer Token with Role-Based Access Control**
+- **Decision**: Simple API key mapping to roles (123→Normal, abc→Admin)
+- **Assumptions**: Internal/controlled environment, small user base
+- **Benefits**: Simple implementation, Swagger UI integration, clear access levels
+- **Tradeoffs**: Static keys vs. JWT complexity, security vs. simplicity
+
+#### **4. Hierarchical Permissions**
+- **Design**: Admin inherits normal user permissions
+- **Endpoints**: Weather (Normal+), Config/Cache (Admin only)
+- **Rationale**: Principle of least privilege with practical administrative access
+
+#### **5. Connection Pooling Strategy with persistent session**
+- **Decision**: Global `aiohttp.ClientSession` with connection reuse
+- **Configuration**: 100 total connections, 30 per host, 30s keepalive
+- **Benefits**: Reduced connection overhead, better throughput
+- **Assumptions**: Moderate concurrent load, stable provider endpoints
+
+#### **6. Rate Limiting Implementation**
+- **Algorithm**: Token Bucket
+- **Per-Provider Buckets**: Separate limits for each API provider
+- **Configuration**: 
+  - OpenWeather: 60 tokens/min (free tier limit)
+  - WeatherAPI: 100 tokens/min
+  - OpenMeteo: 1000 tokens/min (generous free tier)
+- **Benefits**: Burst handling, provider quota protection
+- **Tradeoffs**: Memory overhead vs. API quota protection
+
+#### **7. Retry & Error Handling Strategy**
+- **Retry Policy**: Exponential backoff with jitter (1s → 2s → 4s → 8s → 16s max)
+- **Retry Scenarios**: Timeouts, 5xx errors, rate limits (429)
+- **No Retry**: 4xx client errors (except 429)
+- **Assumptions**: Transient failures are common, providers have temporary issues
+
+#### **8. Timeout Configuration Strategy**
+- **Per-Provider Timeouts**: Different limits based on provider characteristics
+- **Default Values**: 7-8s total, 2s connect (tuned for typical response times)
+- **Configurability**: All timeouts externally configurable
+- **Assumptions**: Network conditions are relatively stable
+
+#### **9. Scalability Decisions**
+- **Assumption**: Small to medium scale (hundreds of requests/minute)
+- **Worker Model**: Multi-worker deployment supported (2-4 workers typical)
+- **Stateless Design**: No shared state between requests (except cache)
+- **Horizontal Scaling**: Multiple instances possible (with separate caches)
+
 ## 📋 Prerequisites
 
 - **Python 3.11+**
 - **API Keys** from OpenWeatherMap and WeatherAPI
     - **OpenWeatherMap**: [https://openweathermap.org/api](https://openweathermap.org/api) (60 calls/minute free)
     - **WeatherAPI**: [https://www.weatherapi.com/signup.aspx](https://www.weatherapi.com/signup.aspx) (1M calls/month free)
-
 
 ## 🚀 Quick Start
 
@@ -429,3 +490,48 @@ python -m pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
 python -m pytest tests/test_functional.py -v
 ```
 
+
+## 🔨 Future Improvements & Roadmap
+
+#### **1. Distributed Caching with Redis**
+- **Replace in-memory cache** with Redis for shared cache across multiple instances
+- **Implement cache clustering** for high availability and horizontal scaling
+
+#### **2. Advanced Caching Strategies**
+- **Intelligent Cache Tiering**: Hot/warm/cold data classification with different TTLs
+- **Popular Location Identification**: Machine learning-based prediction of frequently requested locations
+
+#### **3. Infrastructure & Deployment**
+- **Docker Compose Orchestration**: Multi-service deployment with Redis, Nginx load balancer, and monitoring stack
+- **Kubernetes Deployment**: Helm charts for container orchestration with auto-scaling
+- **Blue-Green Deployment**: Zero-downtime deployment strategies
+
+#### **4. Enterprise Authentication**
+- **JWT Token Implementation**: Replace static API keys with secure, expiring tokens
+- **OAuth 2.0 Integration**: Support for external identity providers (Google, GitHub, etc.)
+- **API Key Management**: Dynamic key generation, rotation, and fine-grained permissions
+
+#### **5. Comprehensive Metrics & Monitoring**
+- **Prometheus Integration**: Custom metrics collection for weather API performance
+- **Grafana Dashboards**: Real-time visualization of:
+  - Cache hit/miss ratios per location
+  - Provider response times and success rates
+  - Request throughput and latency percentiles
+  - Error rates and retry statistics
+- **Health Check Endpoints**: Detailed service health with dependency status
+
+#### **6. Alerting & Incident Management**
+- **Automated Alerting**: Email/Slack integration for critical failures
+- **SLA Monitoring**: Service level objective tracking and reporting
+- **Circuit Breaker Pattern**: Automatic failover when providers are degraded
+- **Chaos Engineering**: Resilience testing with controlled failure injection
+
+#### **7. Persistent Data Storage**
+- **Historical Weather Data**: PostgreSQL/TimescaleDB for trend analysis
+- **Request Analytics**: User behavior tracking and API usage patterns
+- **Data Archival**: Long-term storage strategies for compliance and analysis
+- **Backup & Recovery**: Automated backup procedures with point-in-time recovery
+
+#### **8. Advanced Data Features**
+- **Weather Forecasting**: Integration with forecast APIs for predictive data
+- **Machine Learning/AI Insights**: LLM-powered weather pattern analysis and recommendatation
