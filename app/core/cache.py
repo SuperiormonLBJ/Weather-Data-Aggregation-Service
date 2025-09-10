@@ -32,13 +32,12 @@ class WeatherCache:
             ttl_seconds: Time to live for cache entries (default from config)
             max_size: Maximum number of entries before LRU eviction
         """
+        # Fix: Ensure ttl_seconds is never None
         self._ttl = ttl_seconds if ttl_seconds is not None else CACHE_TTL_SECONDS
         self._max_size = max_size
         
-        # Use TTLCache for automatic expiration + LRU eviction
-        # The key insight: cachetools compares keys, not values
-        # So we store the data directly as the value
-        self._cache = TTLCache(maxsize=max_size, ttl=ttl_seconds)
+        # Fix: Use self._ttl instead of ttl_seconds to ensure it's never None
+        self._cache = TTLCache(maxsize=max_size, ttl=self._ttl)
         
         # Simple statistics
         self._hits = 0
@@ -62,7 +61,7 @@ class WeatherCache:
         return normalized
     
     def get(self, location: str) -> Optional[Dict[str, Any]]:
-        """Get cached weather data"""
+        """Get cached weather data with error handling"""
         key = self._normalize_key(location)
         
         try:
@@ -74,12 +73,17 @@ class WeatherCache:
             self._misses += 1
             logger.debug(f"Cache miss: {key}")
             return None
+        except Exception as e:
+            # Handle any comparison errors from cachetools
+            logger.warning(f"Cache get error for {key}: {e}")
+            self._misses += 1
+            return None
     
     def set(self, location: str, data: Dict[str, Any]):
-        """Cache weather data"""
+        """Cache weather data with error handling"""
         key = self._normalize_key(location)
+        
         try:
-            # cachetools only compares keys for LRU, not values
             self._cache[key] = data
             logger.debug(f"Cache set: {key}")
         except Exception as e:
