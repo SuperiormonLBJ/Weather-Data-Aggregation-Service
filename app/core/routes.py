@@ -102,7 +102,25 @@ router = APIRouter()
     },
     tags=["Weather Data"],
     summary="Get aggregated weather data",
-    description="Retrieve current weather information from multiple providers with intelligent aggregation"
+    description="""
+    Retrieve current weather information from multiple providers with intelligent aggregation
+
+    Example input:
+    - singpore
+    - 1.3521,103.8198
+    - New York
+    
+    Authentication: Bearer Token Required
+    - Use `Authorization: Bearer 123` for normal user
+    - Use `Authorization: Bearer abc` for admin user
+    
+    Args:
+        location (str): Location query (city name or coordinates)
+        api_key (str): Validated API key from authentication dependency
+        
+    Returns:
+        Dict[str, Any]: Aggregated weather data with provider metadata
+    """
 )
 async def get_weather(
     location: str,

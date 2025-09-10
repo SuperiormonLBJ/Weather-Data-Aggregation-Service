@@ -31,9 +31,9 @@ A professional RESTful API service that aggregates real-time weather data from 3
 - **Persistent Session Management**: Reuse connection more efficiently and cut down waiting time
 - **Smart Caching**: In-memory cache for fast read with LRU, TTL and metrics
 - **Input Validation**: Validate on input, ensuring backend safety
-- **Fault Tolerance**: Service continues even when some providers fail with proper logging and error handling
+- **Fault Tolerance**: Service continues even when some providers fail with retries, timeout and error handling
 - **Rate Limiting**: Token bucket algorithm prevents API quota exhaustion for all providers
-- **Global Support**: Accepts either city names and coordinates worldwide, even for OpenMeteo it will be able to take cityname now (By default only takes coordinates)
+- **City Name Support for OpenMeteo**: Accepts either city names and coordinates worldwide, even for OpenMeteo it will be able to take cityname now (By default only takes coordinates)
 - **Weather Condition Standardization**: Converts different weather description from multi providers into a standard mapping list
 - **Deployable Dockerfile**: Wrap up reuqired dependencies into portable docker image
 
@@ -46,31 +46,20 @@ A professional RESTful API service that aggregates real-time weather data from 3
 - **Tradeoffs**: Increased code complexity vs. dramatic performance gains for concurrent requests
 
 #### **2. In-Memory Caching over Redis Caching**
-- **Decision**: Simple in-memory cache with TTL (10 minutes default)
+- **Decision**: In-memory cache with TTL (10 minutes default), max_size and LRU based on cachetools
 - **Assumptions**: 
   - Small to medium scale (hundreds of requests/minute) 
   - Weather data change frequently, so no need for persistent cache data storage
 - **Benefits**: No external dependencies, faster access, simple implementation
 - **Tradeoffs**: Lost cache on restart, no sharing between instances vs. operational simplicity
 
-#### **3. Bearer Token with Role-Based Access Control**
-- **Decision**: Simple API key mapping to roles (123→Normal, abc→Admin)
-- **Assumptions**: Internal/controlled environment, small user base
-- **Benefits**: Simple implementation, Swagger UI integration, clear access levels
-- **Tradeoffs**: Static keys vs. JWT complexity, security vs. simplicity
-
-#### **4. Hierarchical Permissions**
-- **Design**: Admin inherits normal user permissions
-- **Endpoints**: Weather (Normal+), Config/Cache (Admin only)
-- **Rationale**: Principle of least privilege with practical administrative access
-
-#### **5. Connection Pooling Strategy with persistent session**
+#### **3. Connection Pooling Strategy with persistent session**
 - **Decision**: Global `aiohttp.ClientSession` with connection reuse
 - **Configuration**: 100 total connections, 30 per host, 30s keepalive
 - **Benefits**: Reduced connection overhead, better throughput
 - **Assumptions**: Moderate concurrent load, stable provider endpoints
 
-#### **6. Rate Limiting Implementation**
+#### **4. Rate Limiting Implementation**
 - **Algorithm**: Token Bucket
 - **Per-Provider Buckets**: Separate limits for each API provider
 - **Configuration**: 
@@ -78,21 +67,22 @@ A professional RESTful API service that aggregates real-time weather data from 3
   - WeatherAPI: 100 tokens/min
   - OpenMeteo: 1000 tokens/min (generous free tier)
 - **Benefits**: Burst handling, provider quota protection
-- **Tradeoffs**: Memory overhead vs. API quota protection
+- **Assumptions**: Small to medium scale (hundreds of requests/minute)
+- **Tradeoffs**: limitaion in scalability vs. High API quota protection & Short burst allowed
 
-#### **7. Retry & Error Handling Strategy**
+#### **5. Retry & Error Handling Strategy**
 - **Retry Policy**: Exponential backoff with jitter (1s → 2s → 4s → 8s → 16s max)
 - **Retry Scenarios**: Timeouts, 5xx errors, rate limits (429)
 - **No Retry**: 4xx client errors (except 429)
 - **Assumptions**: Transient failures are common, providers have temporary issues
 
-#### **8. Timeout Configuration Strategy**
+#### **6. Timeout Configuration Strategy**
 - **Per-Provider Timeouts**: Different limits based on provider characteristics
 - **Default Values**: 7-8s total, 2s connect (tuned for typical response times)
 - **Configurability**: All timeouts externally configurable
 - **Assumptions**: Network conditions are relatively stable
 
-#### **9. Scalability Decisions**
+#### **7. Scalability Decisions**
 - **Assumption**: Small to medium scale (hundreds of requests/minute)
 - **Worker Model**: Multi-worker deployment supported (2-4 workers typical)
 - **Stateless Design**: No shared state between requests (except cache)
@@ -525,10 +515,9 @@ python -m pytest tests/test_functional.py -v
 - **Intelligent Cache Tiering**: Hot/warm/cold data classification with different TTLs
 - **Popular Location Identification**: Machine learning-based prediction of frequently requested locations
 
-#### **3. Infrastructure & Deployment**
-- **Docker Compose Orchestration**: Multi-service deployment with Redis, Nginx load balancer, and monitoring stack
-- **Kubernetes Deployment**: Helm charts for container orchestration with auto-scaling
-- **Blue-Green Deployment**: Zero-downtime deployment strategies
+#### **3. Resilience & Fault Tolerance Enhancements**
+- **Circuit Breaker**: Prevents cascading failures, reduces wasted calls, and allows graceful fallback
+- **Redis-based Rate Limiting**: Enforces quota across multiple app instances
 
 #### **4. Enterprise Authentication**
 - **JWT Token Implementation**: Replace static API keys with secure, expiring tokens
@@ -554,6 +543,12 @@ python -m pytest tests/test_functional.py -v
 - **Data Archival**: Long-term storage strategies for compliance and analysis
 - **Backup & Recovery**: Automated backup procedures with point-in-time recovery
 
-#### **8. Advanced Data Features**
+#### **8. Infrastructure & Deployment**
+- **Docker Compose Orchestration**: Multi-service deployment with Redis, Nginx load balancer, and monitoring stack
+- **Kubernetes Deployment**: Helm charts for container orchestration with auto-scaling
+- **Blue-Green Deployment**: Zero-downtime deployment strategies
+
+#### **9. Advanced Data Features**
 - **Weather Forecasting**: Integration with forecast APIs for predictive data
 - **Machine Learning/AI Insights**: LLM-powered or ML-driven weather pattern analysis and recommendatation
+
