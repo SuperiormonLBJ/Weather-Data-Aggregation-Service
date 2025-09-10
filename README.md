@@ -21,7 +21,7 @@ A professional RESTful API service that aggregates real-time weather data from 3
 - [🐳 Docker Deployment](#-docker-deployment)
 - [🔧 Configuration Options](#-configuration-options)
 - [🕥 Load Testing with Authentication](#-load-testing-with-authentication)
-
+- [🔨 Future Improvements](#-future-improvements)
 ---
 
 ## 🌟 Features/Highlights
@@ -491,7 +491,7 @@ python -m pytest tests/test_functional.py -v
 ```
 
 
-## 🔨 Future Improvements & Roadmap
+## 🔨 Future Improvements
 
 #### **1. Distributed Caching with Redis**
 - **Replace in-memory cache** with Redis for shared cache across multiple instances
