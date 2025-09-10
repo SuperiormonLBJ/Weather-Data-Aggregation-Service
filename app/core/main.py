@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Weather Data Aggregation Service",
-    description="Aggregates weather data from multiple providers",
+    description="Aggregates weather data from multiple providers with role-based authentication",
     version="1.0.0",
     lifespan=lifespan
 )

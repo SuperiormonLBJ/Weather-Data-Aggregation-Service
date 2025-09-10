@@ -1,47 +1,67 @@
 """
-Simple API Key Authentication
+Role-based API Key Authentication (Bearer Token Only)
 """
-import os
-from fastapi import HTTPException, Request, status, Depends
-from fastapi.security import HTTPBearer, APIKeyQuery, HTTPAuthorizationCredentials
-from typing import Optional
+from enum import Enum
+from fastapi import HTTPException, status, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .logger import get_logger
 
 logger = get_logger(__name__)
 
-# API key allowlist configuration from environment, defined by user in .env file
-API_KEYS = set(os.getenv('API_KEYS', '').split(',')) if os.getenv('API_KEYS') else set()
+class UserRole(Enum):
+    """User roles with different access levels"""
+    NORMAL = "normal"
+    ADMIN = "admin"
 
-# FastAPI Security schemes for Swagger UI
-bearer_scheme = HTTPBearer(auto_error=False)
+# API key to role mapping
+API_KEY_ROLES = {
+    "123": UserRole.NORMAL,
+    "abc": UserRole.ADMIN,
+}
 
-# FastAPI-native authentication function for better Swagger integration
-async def get_api_key(
-    bearer_token: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
+# Shared security scheme for both authentication and Swagger UI
+security = HTTPBearer()
+
+def get_user_role(api_key: str) -> UserRole:
+    """Get user role from API key"""
+    return API_KEY_ROLES.get(api_key, None)
+
+# Authentication functions for route dependencies
+async def verify_normal_user(
+    token: HTTPAuthorizationCredentials = Depends(security)
 ) -> str:
-    """
-    FastAPI-native API key authentication that works well with Swagger UI.
-    Tries Bearer token first, then query parameter.
-    """
+    """Verify normal user or admin access"""
+    key = token.credentials
     
-    # Extract API key from bearer token or query parameter
-    key = None
-    if bearer_token:
-        key = bearer_token.credentials
-    
-    if not key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key required. Use Authorization: Bearer <key> header or ?api_key=<key> parameter"
-        )
-    
-    # Validate API key
-    if key in API_KEYS:
-        logger.debug("Valid API key provided")
-        return key
-    else:
-        logger.warning("Invalid API key provided")
+    if key not in API_KEY_ROLES:
+        logger.warning(f"Invalid API key provided: {key}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key"
         )
+    
+    logger.debug(f"Access granted: {key} -> {get_user_role(key).value}")
+    return key
+
+async def verify_admin_user(
+    token: HTTPAuthorizationCredentials = Depends(security)
+) -> str:
+    """Verify admin user access only"""
+    key = token.credentials
+    
+    if key not in API_KEY_ROLES:
+        logger.warning(f"Invalid API key provided: {key}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key"
+        )
+    
+    user_role = get_user_role(key)
+    if user_role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
+    logger.debug(f"Admin access granted: {key}")
+    return key

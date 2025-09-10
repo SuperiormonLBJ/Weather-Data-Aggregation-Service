@@ -11,7 +11,7 @@ from .exceptions import (
 )
 from .logger import get_logger
 from ..config import get_config_summary
-from .auth import get_api_key
+from .auth import verify_normal_user, verify_admin_user
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -43,16 +43,33 @@ router = APIRouter()
             "description": "Authentication required",
             "content": {
                 "application/json": {
-                    "example": {"detail": "API key required. Use Authorization: Bearer <key> header or ?api_key=<key> parameter"}
+                    "example": {"detail": "Not authenticated"}
+                }
+            }
+        },
+        403: {
+            "description": "Insufficient permissions",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Admin access required"}
                 }
             }
         },
         **RESPONSE_EXAMPLES
     }
 )
-async def get_weather(location: str, api_key: str = Depends(get_api_key)) -> Dict[str, Any]:
+async def get_weather(
+    location: str,
+    api_key: str = Depends(verify_normal_user)
+) -> Dict[str, Any]:
     """Get aggregated weather data from multiple providers
 
+    **Access Level:** Normal User or Admin
+    
+    **Authentication:** Bearer Token Required
+    - Use `Authorization: Bearer 123` for normal user
+    - Use `Authorization: Bearer abc` for admin user
+    
     **Input formats:**
     Please either provide a city name or coordinates with a comma.
     - City: "Singapore", "New York" 
@@ -69,9 +86,6 @@ async def get_weather(location: str, api_key: str = Depends(get_api_key)) -> Dic
     - Coordinates: "1.29,103.85,103.85" / "1.29,12222" / "12"
     
     """
-    # Use the authenticated key for logging
-    used_key = api_key
-    logger.info(f"Weather request started: {location} (API key: {used_key})")
     
     if not location or not location.strip():
         logger.warning("Empty location parameter")
@@ -96,14 +110,95 @@ async def get_weather(location: str, api_key: str = Depends(get_api_key)) -> Dic
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
         
 
-@router.get("/config")
-def get_current_config():
-    """Get current service configuration"""
+@router.get(
+    "/config",
+    responses={
+        200: {
+            "description": "Current service configuration",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "providers": ["OpenWeatherMap", "WeatherAPI", "OpenMeteo"],
+                        "cache_ttl": 300,
+                        "timeout": 5.0
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Authentication required",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Not authenticated"}
+                }
+            }
+        },
+        403: {
+            "description": "Admin access required",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Admin access required"}
+                }
+            }
+        }
+    }
+)
+def get_current_config(api_key: str = Depends(verify_admin_user)):
+    """Get current service configuration
+    
+    **Access Level:** Admin Only
+    
+    **Authentication:** Bearer Token Required
+    - Use `Authorization: Bearer abc` for admin access
+    
+    Returns the current configuration of the weather service including
+    provider settings, cache TTL, and timeout configurations.
+    """
+
     return get_config_summary()
 
-@router.delete("/cache")
-def clear_cache():
-    """Clear all cached data"""
+@router.delete(
+    "/cache",
+    responses={
+        200: {
+            "description": "Cache cleared successfully",
+            "content": {
+                "application/json": {
+                    "example": {"message": "Cache cleared successfully"}
+                }
+            }
+        },
+        401: {
+            "description": "Authentication required",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Not authenticated"}
+                }
+            }
+        },
+        403: {
+            "description": "Admin access required",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Admin access required"}
+                }
+            }
+        }
+    }
+)
+def clear_cache(api_key: str = Depends(verify_admin_user)):
+    """Clear all cached data
+    
+    **Access Level:** Admin Only
+    
+    **Authentication:** Bearer Token Required
+    - Use `Authorization: Bearer abc` for admin access
+    
+    Clears all cached weather data from memory. This operation
+    will force fresh data to be fetched from weather providers
+    on the next request.
+    """
+    
     from .cache import weather_cache
     weather_cache.clear()
     return {"message": "Cache cleared successfully"}
