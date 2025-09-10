@@ -29,7 +29,7 @@ A professional RESTful API service that aggregates real-time weather data from 3
 - **Multi-Provider Aggregation**: Combines data from OpenWeatherMap, WeatherAPI.com, and Open-Meteo
 - **Parallel Processing**: Concurrent Async API calls for optimal performance (1-2s total response time)
 - **Persistent Session Management**: Reuse connection more efficiently and cut down waiting time
-- **Smart Caching**: In-memory cache for fast read
+- **Smart Caching**: In-memory cache for fast read with LRU, TTL and metrics
 - **Input Validation**: Validate on input, ensuring backend safety
 - **Fault Tolerance**: Service continues even when some providers fail with proper logging and error handling
 - **Rate Limiting**: Token bucket algorithm prevents API quota exhaustion for all providers
@@ -49,7 +49,7 @@ A professional RESTful API service that aggregates real-time weather data from 3
 - **Decision**: Simple in-memory cache with TTL (10 minutes default)
 - **Assumptions**: 
   - Small to medium scale (hundreds of requests/minute) 
-  - Weather data doesn't change frequently
+  - Weather data change frequently, so no need for persistent cache data storage
 - **Benefits**: No external dependencies, faster access, simple implementation
 - **Tradeoffs**: Lost cache on restart, no sharing between instances vs. operational simplicity
 
@@ -407,6 +407,38 @@ curl -X DELETE -H "Authorization: Bearer abc" \
 }
 ```
 
+##### `GET /api/v1/cache/stats`
+**Get cache performance statistics**
+
+**Headers:**
+```
+Authorization: Bearer abc
+```
+
+**Example Request:**
+```bash
+curl -H "Authorization: Bearer abc" \
+     "http://localhost:8000/api/v1/cache/stats"
+```
+
+**Response Format:**
+```json
+{
+  "hits": 245,
+  "misses": 78,
+  "total_requests": 323,
+  "hit_ratio": 75.85,
+  "current_size": 156,
+  "max_size": 1000,
+  "ttl_seconds": 600,
+  "popular_locations": [
+    ["singapore", 15],
+    ["new york", 12],
+    ["1.2900,103.8500", 8]
+  ]
+}
+```
+
 ### 🚨 Error Responses
 
 #### Authentication Errors
@@ -514,15 +546,13 @@ python -m pytest tests/test_functional.py -v
 #### **5. Comprehensive Metrics & Monitoring**
 - **Prometheus Integration**: Custom metrics collection for weather API performance
 - **Grafana Dashboards**: Real-time visualization of:
-  - Cache hit/miss ratios per location
-  - Provider response times and success rates
+  - Provider success rates
   - Request throughput and latency percentiles
   - Error rates and retry statistics
 - **Health Check Endpoints**: Detailed service health with dependency status
 
 #### **6. Alerting & Incident Management**
 - **Automated Alerting**: Email/Slack integration for critical failures
-- **SLA Monitoring**: Service level objective tracking and reporting
 - **Circuit Breaker Pattern**: Automatic failover when providers are degraded
 - **Chaos Engineering**: Resilience testing with controlled failure injection
 
@@ -534,4 +564,4 @@ python -m pytest tests/test_functional.py -v
 
 #### **8. Advanced Data Features**
 - **Weather Forecasting**: Integration with forecast APIs for predictive data
-- **Machine Learning/AI Insights**: LLM-powered weather pattern analysis and recommendatation
+- **Machine Learning/AI Insights**: LLM-powered or ML-driven weather pattern analysis and recommendatation

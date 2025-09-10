@@ -11,7 +11,7 @@ Benefits of cachetools:
 - Simple API
 
 Author: Li Beiji
-Version: 2.0.0
+Version: 2.0.1
 """
 import time
 from typing import Dict, Any, Optional

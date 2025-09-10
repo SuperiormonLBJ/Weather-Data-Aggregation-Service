@@ -52,16 +52,32 @@ router = APIRouter()
             "content": {
                 "application/json": {
                     "example": {
-                        "location": "Singapore", 
-                        "temperature": {"value": 28.5, "unit": "celsius", "method": "median"},
-                        "humidity": 75.2,
-                        "conditions": "Partly cloudy",
-                        "source": [
-                            {"provider": "OpenWeatherMap", "status": "success", "response_time_ms": 234},
-                            {"provider": "WeatherAPI", "status": "success", "response_time_ms": 187},
-                            {"provider": "OpenMeteo", "status": "success", "response_time_ms": 156}
+                        "location": "chengdu",
+                        "temperature": {
+                            "value": 24.2,
+                            "unit": "celsius",
+                            "method": "median"
+                        },
+                        "humidity": 87,
+                        "conditions": "overcast",
+                        "sources": [
+                            {
+                            "provider": "OpenWeatherMap",
+                            "status": "success",
+                            "response_time_ms": 230
+                            },
+                            {
+                            "provider": "WeatherAPI",
+                            "status": "success",
+                            "response_time_ms": 348
+                            },
+                            {
+                            "provider": "OpenMeteo",
+                            "status": "success",
+                            "response_time_ms": 1250
+                            }
                         ],
-                        "timestamp_sg": "2024-01-15 14:30:25 SGT"
+                        "timestamp": "2025-09-11T00:13:04.462476+08:00"
                     }
                 }
             }
@@ -325,8 +341,27 @@ def clear_cache(api_key: str = Depends(verify_admin_user)) -> Dict[str, Any]:
                     }
                 }
             }
+        },
+        401: {
+            "description": "Authentication required",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Not authenticated"}
+                }
+            }
+        },
+        403: {
+            "description": "Admin access required",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Administrative access required. This endpoint is restricted to admin users."}
+                }
+            }
         }
-    }
+    },
+    tags=["Administration"],
+    summary="Get cache statistics",
+    description="Get detailed statistics about the current cache (Admin only)"
 )
 def get_cache_stats(api_key: str = Depends(verify_admin_user)) -> Dict[str, Any]:
     """
