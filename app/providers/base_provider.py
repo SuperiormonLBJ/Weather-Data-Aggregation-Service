@@ -4,8 +4,8 @@ Base weather provider class with common functionality
 import aiohttp
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Tuple
-from app.http.http_helper import make_api_request, get_weather_description
-from app.core.logger import get_logger
+from ..http.http_helper import make_api_request, get_weather_description
+from ..core.logger import get_logger
 
 logger = get_logger(__name__)
 

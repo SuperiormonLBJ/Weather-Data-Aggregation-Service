@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
-from app.core.service import WeatherAggregationService
-from app.core.exceptions import (
+from .service import WeatherAggregationService
+from .exceptions import (
     ValidationError, 
     ConfigurationError, 
     ProviderError,
@@ -9,9 +9,9 @@ from app.core.exceptions import (
     format_error,
     RESPONSE_EXAMPLES
 )
-from app.core.logger import get_logger
-from app.config import get_config_summary
-from app.core.auth import get_api_key
+from .logger import get_logger
+from ..config import get_config_summary
+from .auth import get_api_key
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -104,6 +104,6 @@ def get_current_config():
 @router.delete("/cache")
 def clear_cache():
     """Clear all cached data"""
-    from app.core.cache import weather_cache
+    from .cache import weather_cache
     weather_cache.clear()
     return {"message": "Cache cleared successfully"}

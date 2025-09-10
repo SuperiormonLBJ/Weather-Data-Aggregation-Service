@@ -3,10 +3,10 @@ OpenWeatherMap provider implementation
 """
 from typing import Dict, Any, Tuple
 import aiohttp
-from app.config import PROVIDERS
-from app.utils.weather_code import OPENWEATHER_CODE_MAPPING
-from app.utils.utils import parse_coordinates
-from app.core.logger import get_logger
+from ..config import PROVIDERS
+from ..utils.weather_code import OPENWEATHER_CODE_MAPPING
+from ..utils.utils import parse_coordinates
+from ..core.logger import get_logger
 from .base_provider import BaseWeatherProvider
 
 logger = get_logger(__name__)

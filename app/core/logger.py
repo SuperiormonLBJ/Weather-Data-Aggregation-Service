@@ -7,7 +7,7 @@ import logging.handlers
 import os
 from functools import wraps
 import time
-from app.config import LOG_LEVEL, LOG_FILE, LOG_FORMAT, LOG_DATE_FORMAT
+from ..config import LOG_LEVEL, LOG_FILE, LOG_FORMAT, LOG_DATE_FORMAT
 
 def setup_logging():
     """Setup basic logging configuration using config values"""
@@ -80,4 +80,4 @@ def log_time(func):
     if asyncio and asyncio.iscoroutinefunction(func):
         return async_wrapper
     else:
-        return sync_wrapper 
+        return sync_wrapper

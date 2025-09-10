@@ -2,7 +2,7 @@
 import time
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
-from app.config import CACHE_TTL_SECONDS
+from ..config import CACHE_TTL_SECONDS
 
 @dataclass
 class CacheEntry:

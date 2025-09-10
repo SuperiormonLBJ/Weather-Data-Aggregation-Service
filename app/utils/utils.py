@@ -4,8 +4,8 @@ Utility functions for weather service
 import re
 from typing import Tuple
 from datetime import datetime, timezone, timedelta
-from app.config import OPENWEATHER_API_KEY, WEATHERAPI_KEY
-from app.core.exceptions import ValidationError, ConfigurationError
+from ..config import OPENWEATHER_API_KEY, WEATHERAPI_KEY
+from ..core.exceptions import ValidationError, ConfigurationError
 
 
 def is_coordinates(location: str) -> bool:
@@ -106,4 +106,4 @@ def get_singapore_timestamp() -> str:
     """Get current timestamp in Singapore timezone"""
     singapore_tz = timezone(timedelta(hours=8))
     now = datetime.now(singapore_tz)
-    return now.isoformat() 
+    return now.isoformat()

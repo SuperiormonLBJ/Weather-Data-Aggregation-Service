@@ -3,8 +3,8 @@ Global HTTP session with connection pooling
 """
 import aiohttp
 from typing import Optional
-from app.config import CONNECTION_KEEPALIVE_TIMEOUT, CONNECTION_POOL_SIZE, CONNECTION_POOL_PER_HOST
-from app.core.logger import get_logger
+from ..config import CONNECTION_KEEPALIVE_TIMEOUT, CONNECTION_POOL_SIZE, CONNECTION_POOL_PER_HOST
+from ..core.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -36,4 +36,4 @@ async def close_global_session():
     if _global_session and not _global_session.closed:
         await _global_session.close()
         logger.info("Global session closed")
-        _global_session = None 
+        _global_session = None

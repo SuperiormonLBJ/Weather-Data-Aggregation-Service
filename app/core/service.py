@@ -4,17 +4,17 @@ import time
 from statistics import median
 from typing import List, Dict, Any, Optional
 
-from app.core.cache import weather_cache
-from app.utils.utils import (
+from .cache import weather_cache
+from ..utils.utils import (
     is_coordinates, 
     validate_input_format, 
     validate_api_keys,
     get_singapore_timestamp
 )
-from app.http.http_client import get_global_session
-from app.core.exceptions import ProviderError
-from app.core.logger import get_logger, log_time
-from app.providers import OpenWeatherProvider, WeatherAPIProvider, OpenMeteoProvider
+from ..http.http_client import get_global_session
+from .exceptions import ProviderError
+from .logger import get_logger, log_time
+from ..providers import OpenWeatherProvider, WeatherAPIProvider, OpenMeteoProvider
 
 logger = get_logger(__name__)
 

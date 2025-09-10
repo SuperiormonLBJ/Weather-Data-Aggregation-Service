@@ -3,11 +3,11 @@ OpenMeteo provider implementation with geocoding support
 """
 from typing import Dict, Any, Tuple, Optional
 import aiohttp
-from app.core.logger import get_logger
-from app.config import PROVIDERS
-from app.utils.weather_code import OPENMETEO_CODE_MAPPING
-from app.utils.utils import parse_coordinates
-from app.http.http_helper import make_api_request
+from ..config import PROVIDERS
+from ..utils.weather_code import OPENMETEO_CODE_MAPPING
+from ..utils.utils import parse_coordinates
+from ..http.http_helper import make_api_request
+from ..core.logger import get_logger
 from .base_provider import BaseWeatherProvider
 
 logger = get_logger(__name__)

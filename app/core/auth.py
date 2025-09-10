@@ -5,7 +5,7 @@ import os
 from fastapi import HTTPException, Request, status, Depends
 from fastapi.security import HTTPBearer, APIKeyQuery, HTTPAuthorizationCredentials
 from typing import Optional
-from app.core.logger import get_logger
+from .logger import get_logger
 
 logger = get_logger(__name__)
 

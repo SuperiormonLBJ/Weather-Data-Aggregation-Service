@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, Optional
 
 # Import configurations from config module
-from app.config import TIMEOUTS, RATE_LIMITS, RETRY_CONFIG
+from ..config import TIMEOUTS, RATE_LIMITS, RETRY_CONFIG
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
