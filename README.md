@@ -424,18 +424,10 @@ curl -H "Authorization: Bearer abc" \
 **Response Format:**
 ```json
 {
-  "hits": 245,
-  "misses": 78,
-  "total_requests": 323,
-  "hit_ratio": 75.85,
-  "current_size": 156,
-  "max_size": 1000,
-  "ttl_seconds": 600,
-  "popular_locations": [
-    ["singapore", 15],
-    ["new york", 12],
-    ["1.2900,103.8500", 8]
-  ]
+  "hits": 100,
+  "misses": 20,
+  "total_requests": 120,
+  "hit_ratio": 83.33
 }
 ```
 
