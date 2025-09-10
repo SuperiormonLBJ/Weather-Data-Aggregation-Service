@@ -2,6 +2,29 @@
 
 A professional RESTful API service that aggregates real-time weather data from 3 providers with intelligent fallback handling, rate limiting, RBAC and caching.
 
+## 📑 Table of Contents
+
+- [🌟 Features/Highlights](#-featureshighlights)
+- [📋 Prerequisites](#-prerequisites)
+- [🚀 Quick Start](#-quick-start)
+  - [1. Clone Repository](#1-clone-repository)
+  - [2. Set Up Python Environment](#2-set-up-python-environment)
+  - [3. Configure Environment with .env](#3-configure-environment-with-env)
+  - [4. Run the Application](#4-run-the-application)
+  - [5. API Testing Commands](#5-api-testing-commands)
+- [🐳 Docker Deployment](#-docker-deployment)
+- [🔧 Configuration Options](#-configuration-options)
+- [🕥 Load Testing with Authentication](#-load-testing-with-authentication)
+- [📚 API Documentation](#-api-documentation)
+  - [🔐 Authentication & Authorization](#-authentication--authorization)
+  - [📡 API Endpoints](#-api-endpoints)
+  - [🚨 Error Responses](#-error-responses)
+  - [🎯 Response Features](#-response-features)
+  - [🔧 Integration Examples](#-integration-examples)
+- [🧪 Unit Test & Functional Test](#-unit-test--functional-test)
+
+---
+
 ## 🌟 Features/Highlights
 
 - **Multi-Provider Aggregation**: Combines data from OpenWeatherMap, WeatherAPI.com, and Open-Meteo
@@ -10,7 +33,7 @@ A professional RESTful API service that aggregates real-time weather data from 3
 - **Smart Caching**: In-memory cache for fast read
 - **Input Validation**: Validate on input, ensuring backend safety
 - **Fault Tolerance**: Service continues even when some providers fail with proper logging and error handling
-- **Rate Limiting**: Token bucket algorithm prevents API quota exhaustion for OpenWeatherMap (60calls/min)
+- **Rate Limiting**: Token bucket algorithm prevents API quota exhaustion for all providers
 - **Global Support**: Accepts either city names and coordinates worldwide, even for OpenMeteo it will be able to take cityname now (By default only takes coordinates)
 - **Weather Condition Standardization**: Converts different weather description from multi providers into a standard mapping list
 - **Deployable Dockerfile**: Wrap up reuqired dependencies into portable docker image
@@ -179,15 +202,235 @@ docker run -p 8000:8000 weather-api
 | `LOG_LEVEL` | `INFO` | Logging level: DEBUG, INFO, WARNING, ERROR |
 | `REQUEST_TIMEOUT` | `10` | API request timeout in seconds |
 
-### 🕥 Load Testing  
+### 🕥 Load Testing with Authentication
 
 ```bash
 # Install hey for load testing
 # macOS: brew install hey
 # Linux: go install github.com/rakyll/hey@latest
 
-# Test single endpoint -> test on caching and async
-hey -n 100 -c 10 "http://localhost:8000/api/v1/weather?location=Singapore"
+# Test weather endpoint with bearer token authentication
+hey -n 100 -c 10 \
+    -H "Authorization: Bearer 123" \
+    "http://localhost:8000/api/v1/weather?location=Singapore"
+
+```
+
+## 📚 API Documentation
+
+### 🔐 Authentication & Authorization
+
+The API uses **Bearer Token Authentication** with **Role-Based Access Control (RBAC)**:
+
+| Role | Token | Access Level | Available Endpoints |
+|------|-------|--------------|-------------------|
+| **Normal User** | `123` | Weather data access | `/api/v1/weather` |
+| **Admin** | `abc` | Full system access | All endpoints |
+
+#### Authentication Header Format:
+```
+Authorization: Bearer <token>
+```
+
+### 📡 API Endpoints
+
+#### **Public Endpoints** (No Authentication Required)
+
+##### `GET /`
+**Root endpoint**
+- **Description**: API welcome message and basic info
+- **Response**: JSON with service name and version
+
+##### `GET /health`
+**Health check endpoint**
+- **Description**: Service health status
+- **Response**: JSON with status and timestamp
+
+##### `GET /docs`
+**Interactive API Documentation**
+- **Description**: Swagger UI for testing endpoints
+- **Features**: Built-in authentication support
+
+---
+
+#### **Weather Endpoints** (Normal User Access Required)
+
+##### `GET /api/v1/weather`
+**Get aggregated weather data**
+
+**Parameters:**
+- `location` (required): City name or coordinates
+  - City name: `"Singapore"`, `"New York"`, `"Tokyo"`
+  - Coordinates: `"lat,lon"` format (e.g., `"1.29,103.85"`)
+
+**Headers:**
+```
+Authorization: Bearer 123
+```
+
+**Example Requests:**
+```bash
+# City name
+curl -H "Authorization: Bearer 123" \
+     "http://localhost:8000/api/v1/weather?location=Singapore"
+
+# Coordinates
+curl -H "Authorization: Bearer 123" \
+     "http://localhost:8000/api/v1/weather?location=1.29,103.85"
+```
+
+**Response Format:**
+```json
+{
+  "location": {
+    "name": "Singapore",
+    "latitude": 1.29,
+    "longitude": 103.85,
+    "country": "Singapore"
+  },
+  "conditions": {
+    "temperature": 28.5,
+    "humidity": 85,
+    "pressure": 1013.2,
+    "visibility": 10000,
+    "uv_index": 7,
+    "wind_speed": 5.2,
+    "wind_direction": 180,
+    "description": "Partly cloudy"
+  },
+  "sources": [
+    "openweathermap",
+    "weatherapi", 
+    "openmeteo"
+  ],
+  "timestamp": "2024-01-15T10:30:00Z",
+  "cached": false
+}
+```
+
+---
+
+#### **Admin Endpoints** (Admin Access Required)
+
+##### `GET /api/v1/config`
+**Get system configuration**
+
+**Headers:**
+```
+Authorization: Bearer abc
+```
+
+**Example Request:**
+```bash
+curl -H "Authorization: Bearer abc" \
+     "http://localhost:8000/api/v1/config"
+```
+
+**Response Format:**
+```json
+{
+  "providers": {
+    "openweathermap": {
+      "enabled": true,
+      "base_url": "https://api.openweathermap.org/data/2.5",
+      "timeout": 10
+    },
+    "weatherapi": {
+      "enabled": true,
+      "base_url": "https://api.weatherapi.com/v1",
+      "timeout": 10
+    },
+    "openmeteo": {
+      "enabled": true,
+      "base_url": "https://api.open-meteo.com/v1",
+      "timeout": 10
+    }
+  },
+  "cache_config": {
+    "ttl_seconds": 300,
+    "max_size": 1000
+  },
+  "retry_config": {
+    "max_retries": 3,
+    "backoff_factor": 1.5
+  },
+  "rate_limiting": {
+    "requests_per_minute": 60,
+    "burst_size": 10
+  }
+}
+```
+
+##### `DELETE /api/v1/cache`
+**Clear system cache**
+
+**Headers:**
+```
+Authorization: Bearer abc
+```
+
+**Example Request:**
+```bash
+curl -X DELETE -H "Authorization: Bearer abc" \
+     "http://localhost:8000/api/v1/cache"
+```
+
+**Response Format:**
+```json
+{
+  "message": "Cache cleared successfully",
+  "cleared_entries": 45,
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+### 🚨 Error Responses
+
+#### Authentication Errors
+```json
+// 401 Unauthorized - Missing or invalid token
+{
+  "detail": "Not authenticated"
+}
+
+// 403 Forbidden - Insufficient permissions
+{
+  "detail": "Insufficient permissions for this operation"
+}
+```
+
+#### Validation Errors
+```json
+// 400 Bad Request - Invalid location format
+{
+  "detail": "Invalid location format. Use city name or 'lat,lon' coordinates."
+}
+
+// 422 Unprocessable Entity - Missing required parameters
+{
+  "detail": [
+    {
+      "loc": ["query", "location"],
+      "msg": "field required",
+      "type": "value_error.missing"
+    }
+  ]
+}
+```
+
+#### Service Errors
+```json
+// 503 Service Unavailable - All providers failed
+{
+  "detail": "Weather service temporarily unavailable. All providers failed.",
+  "error_code": "ALL_PROVIDERS_FAILED"
+}
+
+// 429 Too Many Requests - Rate limit exceeded
+{
+  "detail": "Rate limit exceeded. Please try again later.",
+  "retry_after": 60
+}
 ```
 
 
@@ -200,3 +443,4 @@ python -m pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
 # Run funcitnoal test only
 python -m pytest tests/test_functional.py -v
 ```
+
