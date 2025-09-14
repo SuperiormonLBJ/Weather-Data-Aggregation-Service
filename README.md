@@ -100,7 +100,7 @@ A professional RESTful API service that aggregates real-time weather data from 3
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-username/Weather-Data-Aggregation-Service.git
+git clone https://github.com/SuperiormonLBJ/Weather-Data-Aggregation-Service.git
 cd Weather-Data-Aggregation-Service
 ```
 
@@ -154,7 +154,7 @@ uvicorn app.core.main:app --reload --host 0.0.0.0 --port 8000
 
 **Option 2 - run with prepared scripts for specifed environment**
 ```bash
-# Run with deployment scripts to specify environment
+# Run with deployment scripts to specify environment, need to prepare .env.dev/.env.uat/.env.prod
 ./scripts/run-dev.sh
 ./scripts/run-uat.sh
 ./scripts/run-prod.sh
@@ -295,29 +295,32 @@ curl -H "Authorization: Bearer 123" \
 **Response Format:**
 ```json
 {
-  "location": {
-    "name": "Singapore",
-    "latitude": 1.29,
-    "longitude": 103.85,
-    "country": "Singapore"
+  "location": "singapore",
+  "temperature": {
+    "value": 28.6,
+    "unit": "celsius",
+    "method": "median"
   },
-  "conditions": {
-    "temperature": 28.5,
-    "humidity": 85,
-    "pressure": 1013.2,
-    "visibility": 10000,
-    "uv_index": 7,
-    "wind_speed": 5.2,
-    "wind_direction": 180,
-    "description": "Partly cloudy"
-  },
+  "humidity": 66.5,
+  "conditions": "overcast",
   "sources": [
-    "openweathermap",
-    "weatherapi", 
-    "openmeteo"
+    {
+      "provider": "OpenWeatherMap",
+      "status": "success",
+      "response_time_ms": 263
+    },
+    {
+      "provider": "WeatherAPI",
+      "status": "success",
+      "response_time_ms": 359
+    },
+    {
+      "provider": "OpenMeteo",
+      "status": "success",
+      "response_time_ms": 1355
+    }
   ],
-  "timestamp": "2024-01-15T10:30:00Z",
-  "cached": false
+  "timestamp": "2025-09-14T20:56:54.675768+08:00"
 }
 ```
 
@@ -342,34 +345,51 @@ curl -H "Authorization: Bearer abc" \
 **Response Format:**
 ```json
 {
-  "providers": {
-    "openweathermap": {
-      "enabled": true,
-      "base_url": "https://api.openweathermap.org/data/2.5",
-      "timeout": 10
-    },
-    "weatherapi": {
-      "enabled": true,
-      "base_url": "https://api.weatherapi.com/v1",
-      "timeout": 10
-    },
-    "openmeteo": {
-      "enabled": true,
-      "base_url": "https://api.open-meteo.com/v1",
-      "timeout": 10
-    }
-  },
-  "cache_config": {
-    "ttl_seconds": 300,
-    "max_size": 1000
-  },
   "retry_config": {
     "max_retries": 3,
-    "backoff_factor": 1.5
+    "base_delay": 1,
+    "max_delay": 16,
+    "jitter_factor": 0.1,
+    "backoff_multiplier": 2
   },
-  "rate_limiting": {
-    "requests_per_minute": 60,
-    "burst_size": 10
+  "rate_limits": {
+    "openweather": {
+      "tokens": 60,
+      "refill_per_sec": 1
+    },
+    "weatherapi": {
+      "tokens": 100,
+      "refill_per_sec": 1.5
+    },
+    "openmeteo": {
+      "tokens": 1000,
+      "refill_per_sec": 10
+    }
+  },
+  "timeouts": {
+    "openweather": {
+      "total": 7,
+      "connect": 2
+    },
+    "weatherapi": {
+      "total": 7,
+      "connect": 2
+    },
+    "openmeteo": {
+      "total": 8,
+      "connect": 2
+    }
+  },
+  "cache_ttl_seconds": 600,
+  "log_level": "INFO",
+  "api_keys_configured": {
+    "openweather": true,
+    "weatherapi": true
+  },
+  "connection_pool": {
+    "pool_size": 100,
+    "per_host": 30,
+    "keepalive_timeout": 30
   }
 }
 ```
@@ -414,10 +434,13 @@ curl -H "Authorization: Bearer abc" \
 **Response Format:**
 ```json
 {
-  "hits": 100,
-  "misses": 20,
-  "total_requests": 120,
-  "hit_ratio": 83.33
+  "hits": 0,
+  "misses": 3,
+  "total_requests": 3,
+  "hit_ratio": 0,
+  "current_size": 2,
+  "max_size": 1000,
+  "ttl_seconds": 600
 }
 ```
 
