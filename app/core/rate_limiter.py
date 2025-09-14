@@ -43,12 +43,15 @@ class SimpleTokenBucket:
         self.tokens = min(self.max_tokens, self.tokens + tokens_to_add)
         self.last_refill = now
     
-    async def wait_for_token(self):
+    async def wait_for_token(self, timeout_seconds: int = 10):
         """Wait until we have at least 1 token"""
         wait_started = False
         start_time = time.time()
         
         while True:
+            if time.time() - start_time > timeout_seconds:
+                logger.error(f"{self.provider} rate limit timeout after {timeout_seconds}s")
+                raise TimeoutError(f"Rate limit timeout after {timeout_seconds}s")
             self._refill()
             if self.tokens >= 1.0:
                 self.tokens -= 1.0  # Consume token
